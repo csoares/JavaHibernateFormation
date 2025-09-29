@@ -21,7 +21,28 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 🎓 ORDER GOOD CONTROLLER - Demonstração de Excelência com BLOBS e Performance
+ * 
+ * Este controlador exemplifica as melhores práticas para entidades com BLOB:
+ * ✅ Transações read-only optimizadas para consultas
+ * ✅ EntityGraphs estratégicos para resolver problemas N+1
+ * ✅ Consultas que EVITAM carregar BLOBs desnecessariamente
+ * ✅ Paginação obrigatória para escalabilidade com BLOBs
+ * ✅ Projecções DTO para máxima eficiência de dados
+ * ✅ Consultas agregadas SQL em vez de cálculos em memória
+ * ✅ Índices optimizados para consultas por data
+ * ✅ Monitorização integrada de performance e métricas
+ * ✅ Logging estruturado para observabilidade
+ * ✅ Controlo total de respostas HTTP com ResponseEntity
+ * ✅ Tratamento adequado de erros e casos excepcionais
+ * ✅ Separação clara entre dados essenciais e BLOBs pesados
+ */
+
+// ✅ BOA PRÁTICA: @RestController combina @Controller + @ResponseBody
 @RestController
+
+// ✅ BOA PRÁTICA: @RequestMapping no nível da classe para prefixo comum
 @RequestMapping("/api/good/orders")
 public class OrderGoodController {
 
@@ -37,7 +58,13 @@ public class OrderGoodController {
         this.performanceMonitor = performanceMonitor;
     }
 
-    // BOM: Transação read-only com EntityGraph
+    /*
+     * 🎓 ENDPOINT GET BY ID - Demonstração de Optimizações com BLOB
+     */
+    
+    // ✅ BOA PRÁTICA: @Transactional(readOnly = true) para consultas
+    // VANTAGEM: Hibernate não faz dirty checking (mais eficiente)
+    // VANTAGEM: Base de dados pode optimizar consultas read-only
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
     public ResponseEntity<OrderDto> getOrderById(@PathVariable Long id) {
@@ -46,7 +73,10 @@ public class OrderGoodController {
         return performanceMonitor.measure(operationId,
             "Buscar pedido por ID com EntityGraph (User + Department)",
             () -> {
-                // BOM: Usa EntityGraph para carregar relações necessárias
+                // ✅ BOA PRÁTICA: EntityGraph estratégico para BLOBS
+                // VANTAGEM: Carrega Order + User + Department numa única query
+                // IMPORTANTE: NÃO carrega o BLOB (invoicePdf) desnecessariamente
+                // RESULTADO: Máxima eficiência sem desperdício de memória
                 Optional<Order> order = orderRepository.findByIdWithUserAndDepartment(id);
 
                 if (order.isPresent()) {
@@ -63,7 +93,14 @@ public class OrderGoodController {
             });
     }
 
-    // BOM: Paginação eficiente por status
+    /*
+     * 🎓 ENDPOINT PAGINATED - Demonstração de Paginação com BLOBS
+     */
+    
+    // ✅ BOA PRÁTICA: Paginação obrigatória para entidades com BLOB
+    // VANTAGEM: Evita carregar milhares de pedidos + PDFs de uma vez
+    // VANTAGEM: Consulta directa por status (usa índice)
+    // RESULTADO: Performance consistente independente do volume de dados
     @GetMapping
     @Transactional(readOnly = true)
     public ResponseEntity<Page<OrderDto>> getOrdersByStatus(
@@ -76,7 +113,10 @@ public class OrderGoodController {
         return performanceMonitor.measure(operationId,
             String.format("Buscar pedidos por status %s (página %d)", status, page),
             () -> {
-                // BOM: Paginação com JOIN FETCH
+                // ✅ BOA PRÁTICA: Paginação com JOIN FETCH estratégico
+                // VANTAGEM: PageRequest limita resultados (evita OutOfMemoryError)
+                // VANTAGEM: Sort optimiza ordem (usa índice em order_date)
+                // VANTAGEM: findByStatusWithUser() evita N+1 mas NÃO carrega BLOBs
                 Pageable pageable = PageRequest.of(page, size, Sort.by("orderDate").descending());
                 Page<Order> orders = orderRepository.findByStatusWithUser(status, pageable);
 
@@ -89,7 +129,14 @@ public class OrderGoodController {
             });
     }
 
-    // BOM: Projeção para listagem de usuário específico
+    /*
+     * 🎓 ENDPOINT PROJECTION - Demonstração de Máxima Eficiência
+     */
+    
+    // ✅ BOA PRÁTICA: Projecção DTO para dados resumidos
+    // VANTAGEM: Carrega APENAS os campos necessários (nunca BLOBs)
+    // VANTAGEM: SELECT específico em vez de entidades completas
+    // RESULTADO: Performance máxima para listagens e resumos
     @GetMapping("/user/{userId}/summaries")
     @Transactional(readOnly = true)
     public ResponseEntity<List<OrderSummaryDto>> getOrderSummariesByUser(@PathVariable Long userId) {
@@ -98,7 +145,11 @@ public class OrderGoodController {
         return performanceMonitor.measure(operationId,
             "Buscar resumos de pedidos por usuário com projeção JPQL",
             () -> {
-                // BOM: Usa projeção JPQL para dados essenciais
+                // ✅ BOA PRÁTICA: Projecção JPQL - MÁXIMA EFICIÊNCIA
+                // VANTAGEM: SELECT new OrderSummaryDto(...) cria DTOs directamente
+                // VANTAGEM: NÃO carrega entidades nem BLOBs pesados
+                // VANTAGEM: Transferência mínima de dados pela rede
+                // RESULTADO: Performance óptima para resumos
                 List<OrderSummaryDto> summaries = orderRepository.findOrderSummariesByUserId(userId);
 
                 logger.info("✅ {} resumos de pedidos carregados para usuário {}", summaries.size(), userId);
@@ -107,7 +158,14 @@ public class OrderGoodController {
             });
     }
 
-    // BOM: Consulta por número do pedido com otimização
+    /*
+     * 🎓 ENDPOINT SEARCH - Demonstração de Consulta Optimizada
+     */
+    
+    // ✅ BOA PRÁTICA: Consulta por índice único sem carregar BLOB
+    // VANTAGEM: WHERE orderNumber = ? usa índice (performance O(1))
+    // VANTAGEM: JOIN FETCH carrega relações necessárias
+    // IMPORTANTE: NÃO carrega invoicePdf até ser explicitamente pedido
     @GetMapping("/number/{orderNumber}")
     @Transactional(readOnly = true)
     public ResponseEntity<OrderDto> getOrderByNumber(@PathVariable String orderNumber) {
@@ -116,7 +174,11 @@ public class OrderGoodController {
         return performanceMonitor.measure(operationId,
             "Buscar pedido por número com JOIN FETCH múltiplo",
             () -> {
-                // BOM: Consulta otimizada com múltiplos JOIN FETCH
+                // ✅ BOA PRÁTICA: Múltiplos JOIN FETCH estratégicos
+                // VANTAGEM: Uma única query para Order + User + Department
+                // VANTAGEM: Usa índice único em orderNumber (instantâneo)
+                // IMPORTANTE: Método não inclui BLOB no EntityGraph
+                // RESULTADO: Dados completos sem carregar MB de PDF
                 Optional<Order> order = orderRepository.findByOrderNumberWithDetails(orderNumber);
 
                 if (order.isPresent()) {

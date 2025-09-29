@@ -71,6 +71,83 @@ curl http://localhost:8080/api/data/statistics
 
 ## 🔍 Demonstrações de Performance
 
+### Alternativa: Comparação por Requests HTTP
+
+Em vez de executar os containers Docker, pode comparar diretamente as práticas fazendo requests HTTP para os endpoints `good` vs `bad`:
+
+#### 🚀 Teste Rápido de Performance
+```bash
+# Primeiro, certifique-se de que a aplicação está a correr
+mvn spring-boot:run
+
+# Populate dados de teste
+curl -X POST http://localhost:8080/api/data/populate
+
+# 1. Comparar busca de usuário por ID
+echo "=== GOOD PRACTICE - Busca por ID ===" 
+time curl -s "http://localhost:8080/api/good/users/1" > /dev/null
+
+echo "=== BAD PRACTICE - Busca por ID ===" 
+time curl -s "http://localhost:8080/api/bad/users/1" > /dev/null
+
+# 2. Comparar paginação de usuários
+echo "=== GOOD PRACTICE - Paginação ===" 
+time curl -s "http://localhost:8080/api/good/users?page=0&size=20" > /dev/null
+
+echo "=== BAD PRACTICE - Todos os usuários ===" 
+# CUIDADO: Este endpoint pode ser muito lento!
+time curl -s "http://localhost:8080/api/bad/users" > /dev/null
+
+# 3. Comparar busca por departamento
+echo "=== GOOD PRACTICE - Por Departamento ===" 
+time curl -s "http://localhost:8080/api/good/users/department/Tecnologia" > /dev/null
+
+echo "=== BAD PRACTICE - Por Departamento ===" 
+time curl -s "http://localhost:8080/api/bad/users/department/Tecnologia" > /dev/null
+
+# 4. Ver resumo de performance
+curl "http://localhost:8080/api/good/users/performance/summary"
+curl "http://localhost:8080/api/bad/users/performance/summary"
+```
+
+#### 📊 Script de Benchmark Simples
+Crie um ficheiro `benchmark.sh`:
+```bash
+#!/bin/bash
+
+echo "🚀 Iniciando teste de performance..."
+
+# Função para medir tempo de resposta
+measure_endpoint() {
+    local name=$1
+    local url=$2
+    echo "Testing: $name"
+    
+    # Fazer 5 requests e calcular média
+    total_time=0
+    for i in {1..5}; do
+        response_time=$(curl -o /dev/null -s -w '%{time_total}' "$url")
+        total_time=$(echo "$total_time + $response_time" | bc)
+        echo "  Request $i: ${response_time}s"
+    done
+    
+    avg_time=$(echo "scale=3; $total_time / 5" | bc)
+    echo "  ⏱️  Tempo médio: ${avg_time}s"
+    echo ""
+}
+
+# Comparações
+measure_endpoint "GOOD - Buscar usuário" "http://localhost:8080/api/good/users/1"
+measure_endpoint "BAD - Buscar usuário" "http://localhost:8080/api/bad/users/1"
+
+measure_endpoint "GOOD - Paginação" "http://localhost:8080/api/good/users?page=0&size=20"
+measure_endpoint "BAD - Listar todos" "http://localhost:8080/api/bad/users"
+
+echo "✅ Teste concluído!"
+```
+
+Execute: `chmod +x benchmark.sh && ./benchmark.sh`
+
 ### Console H2 Database
 Acesse: http://localhost:8080/h2-console
 - **URL:** `jdbc:h2:mem:testdb`

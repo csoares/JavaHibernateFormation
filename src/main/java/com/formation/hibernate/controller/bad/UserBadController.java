@@ -14,6 +14,23 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 🚨 USER BAD CONTROLLER - Demonstração de MÁS PRÁTICAS (NÃO COPIAR!)
+ * 
+ * ⚠️ AVISO: Este controlador demonstra práticas PERIGOSAS intencionalmente!
+ * 
+ * Más práticas demonstradas para fins educativos:
+ * ❌ Ausência de transacções read-only (desperdício de recursos)
+ * ❌ Problemas N+1 sistemáticos (múltiplas consultas desnecessárias)
+ * ❌ Carregamento completo sem paginação (OutOfMemoryError)
+ * ❌ Filtragem em memória em vez de consultas optimizadas
+ * ❌ Contagens ineficientes carregando dados completos
+ * ❌ Acesso a lazy properties que disparam consultas extras
+ * ❌ Falta de optimizações de base de dados
+ * 
+ * 🎯 Use este controlador APENAS para comparar com UserGoodController!
+ */
+
 @RestController
 @RequestMapping("/api/bad/users")
 public class UserBadController {
