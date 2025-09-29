@@ -1,10 +1,10 @@
 com/formation/hibernate/repository/DepartmentRepository.class
 com/formation/hibernate/controller/N1ProblemController.class
-com/formation/hibernate/HibernatePerformanceApplication.class
-com/formation/hibernate/entity/User.class
 com/formation/hibernate/util/PerformanceMonitor.class
 com/formation/hibernate/util/PerformanceMonitor$PerformanceResult.class
 com/formation/hibernate/entity/Department.class
+com/formation/hibernate/HibernatePerformanceApplication.class
+com/formation/hibernate/entity/User.class
 com/formation/hibernate/controller/DataController.class
 com/formation/hibernate/service/DataService.class
 com/formation/hibernate/config/JpaConfig.class
