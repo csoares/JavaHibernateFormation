@@ -1,0 +1,60 @@
+services:
+  postgresql:
+    image: postgres:15
+    container_name: hibernate-postgres
+    environment:
+      POSTGRES_DB: hibernate_formation
+      POSTGRES_USER: hibernate_user
+      POSTGRES_PASSWORD: hibernate_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+      # Performance tuning for large datasets
+      POSTGRES_SHARED_BUFFERS: 512MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 2GB
+      POSTGRES_MAINTENANCE_WORK_MEM: 256MB
+      POSTGRES_WORK_MEM: 64MB
+      POSTGRES_MAX_CONNECTIONS: 200
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - hibernate-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hibernate_user -d hibernate_formation"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+
+  hibernate-app:
+    build: .
+    container_name: hibernate-app
+    environment:
+      - SPRING_PROFILES_ACTIVE=${PERFORMANCE_PROFILE:-good-performance}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/hibernate_formation
+      - SPRING_DATASOURCE_USERNAME=hibernate_user
+      - SPRING_DATASOURCE_PASSWORD=hibernate_password
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=none
+      - JAVA_OPTS=-Xmx2g -Xms1g
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    networks:
+      - hibernate-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  hibernate-network:
+    driver: bridge

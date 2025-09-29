@@ -1,0 +1,192 @@
+spring:
+  application:
+    name: hibernate-performance
+
+  profiles:
+    active: development
+
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: password
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+        generate_statistics: true
+        session:
+          events:
+            log:
+              LOG_QUERIES_SLOWER_THAN_MS: 100
+    hibernate:
+      ddl-auto: create-drop
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.stat: DEBUG
+    com.formation.hibernate: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+  datasource:
+    url: jdbc:postgresql://localhost:5432/hibernate_performance
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://postgresql:5432/hibernate_formation
+    driver-class-name: org.postgresql.Driver
+    username: hibernate_user
+    password: hibernate_password
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+        generate_statistics: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        session:
+          events:
+            log:
+              LOG_QUERIES_SLOWER_THAN_MS: 100
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.stat: DEBUG
+    com.formation.hibernate: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: bad-performance
+  datasource:
+    url: jdbc:postgresql://postgresql:5432/hibernate_formation
+    driver-class-name: org.postgresql.Driver
+    username: hibernate_user
+    password: hibernate_password
+    hikari:
+      minimum-idle: 1
+      maximum-pool-size: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+        generate_statistics: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 1
+          fetch_size: 1
+        default_batch_fetch_size: 1
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+        order_inserts: false
+        order_updates: false
+        session:
+          events:
+            log:
+              LOG_QUERIES_SLOWER_THAN_MS: 10
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.stat: DEBUG
+    com.formation.hibernate: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: good-performance
+  datasource:
+    url: jdbc:postgresql://postgresql:5432/hibernate_formation
+    driver-class-name: org.postgresql.Driver
+    username: hibernate_user
+    password: hibernate_password
+    hikari:
+      minimum-idle: 10
+      maximum-pool-size: 50
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        generate_statistics: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 50
+          fetch_size: 100
+        default_batch_fetch_size: 16
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+        order_inserts: true
+        order_updates: true
+        session:
+          events:
+            log:
+              LOG_QUERIES_SLOWER_THAN_MS: 100
+
+logging:
+  level:
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    org.hibernate.stat: INFO
+    com.formation.hibernate: INFO
