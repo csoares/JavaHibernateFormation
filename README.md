@@ -350,4 +350,128 @@ curl -X DELETE http://localhost:8080/api/data/clear
 
 ---
 
-**📚 Este projeto é uma ferramenta educativa para compreender profundamente as implicações de performance em JPA/Hibernate através de exemplos práticos e medições reais.**
+---
+
+## 🎓 Branches Educacionais
+
+Este repositório contém vários branches especializados para ensino focado de conceitos específicos:
+
+### 📚 **Main Branch**
+- **Branch**: `main`
+- **Conteúdo**: Implementação completa com BOAS práticas
+- **Uso**: Referência de como fazer correctamente
+- **Características**: 
+  - EntityGraphs optimizados
+  - Paginação em todos os endpoints
+  - Gestão eficiente de BLOBs
+  - Transacções read-only
+  - Comentários educacionais em português
+
+### 🚨 **BadMain Branch**
+- **Branch**: `badmain`
+- **Conteúdo**: Implementação completa com MÁS práticas intencionais
+- **Uso**: Demonstração do que NÃO fazer
+- **⚠️ AVISO**: Apenas para fins educacionais!
+- **Características**:
+  - Problema N+1 sistemático
+  - Ausência total de paginação
+  - Carregamento desnecessário de BLOBs
+  - Filtragem em memória
+  - Falta de validação
+
+### 🎯 **Branches Focados em Conceitos Específicos**
+
+#### 📖 **001-n1problem** - Problema N+1
+- **Foco**: Demonstração isolada do problema N+1
+- **Contém**: 
+  - `N1ProblemController` com exemplos simples
+  - `README-N1PROBLEM.md` com explicação detalhada
+  - Comparação directa: bad vs EntityGraph vs JOIN FETCH
+- **Aprenda**: Como detectar, medir e resolver o problema N+1
+
+#### 📄 **002-pagination** - Paginação Eficiente
+- **Foco**: Técnicas de paginação para grandes volumes
+- **Contém**:
+  - `PaginationController` com exemplos práticos
+  - `README-PAGINATION.md` com guia completo
+  - Demonstração de filtros, ordenação e metadata
+- **Aprenda**: Como evitar OutOfMemoryError com paginação inteligente
+
+#### 💾 **003-blob-management** - Gestão de BLOBs
+- **Foco**: Gestão eficiente de ficheiros e dados pesados
+- **Contém**:
+  - `BlobManagementController` com cenários reais
+  - `README-BLOB-MANAGEMENT.md` com estratégias
+  - Projecções que evitam BLOBs, streaming, metadata
+- **Aprenda**: Como trabalhar com BLOBs sem quebrar a performance
+
+### 🚀 **Como Usar os Branches Educacionais**
+
+#### 1. **Aprendizado Progressivo**
+```bash
+# Começar com conceitos básicos
+git checkout 001-n1problem
+# Ler README-N1PROBLEM.md
+# Testar endpoints /api/n1-demo/*
+
+# Avançar para paginação
+git checkout 002-pagination
+# Ler README-PAGINATION.md
+# Testar endpoints /api/pagination-demo/*
+
+# Dominar gestão de BLOBs
+git checkout 003-blob-management
+# Ler README-BLOB-MANAGEMENT.md
+# Testar endpoints /api/blob-demo/*
+```
+
+#### 2. **Comparação de Implementações**
+```bash
+# Ver implementação má
+git checkout badmain
+curl "http://localhost:8080/api/users" # LENTO!
+
+# Ver implementação boa
+git checkout main
+curl "http://localhost:8080/api/good/users?page=0&size=20" # RÁPIDO!
+```
+
+#### 3. **Exercícios Práticos**
+```bash
+# Branch focado para praticar N+1
+git checkout 001-n1problem
+mvn spring-boot:run
+curl "http://localhost:8080/api/n1-demo/bad/1"     # Ver problema
+curl "http://localhost:8080/api/n1-demo/good-entitygraph/1"  # Ver solução
+```
+
+### 📊 **Comparação entre Branches**
+
+| Branch | Propósito | N+1 Problem | Paginação | BLOBs | Complexidade |
+|--------|-----------|-------------|-----------|-------|--------------|
+| `main` | ✅ Referência boa | ✅ Resolvido | ✅ Sempre | ✅ Optimizado | 🟡 Complexa |
+| `badmain` | ❌ Anti-padrões | ❌ Sistemático | ❌ Nunca | ❌ Perigoso | 🟡 Complexa |
+| `001-n1problem` | 🎓 Foco N+1 | 🎯 **FOCO** | ➖ Mínimo | ➖ Mínimo | 🟢 Simples |
+| `002-pagination` | 🎓 Foco Paginação | ➖ Mínimo | 🎯 **FOCO** | ➖ Mínimo | 🟢 Simples |
+| `003-blob-management` | 🎓 Foco BLOBs | ➖ Mínimo | ➖ Mínimo | 🎯 **FOCO** | 🟢 Simples |
+
+### 🎯 **Plano de Estudos Sugerido**
+
+#### 📚 **Nível Iniciante**
+1. Ler `README-N1PROBLEM.md` no branch `001-n1problem`
+2. Executar comparações simples de N+1
+3. Compreender EntityGraphs básicos
+
+#### 📈 **Nível Intermédio**
+1. Dominar paginação no branch `002-pagination`
+2. Praticar consultas optimizadas
+3. Aprender gestão de BLOBs no branch `003-blob-management`
+
+#### 🏆 **Nível Avançado**
+1. Comparar `main` vs `badmain` integralmente
+2. Medir performance real com ferramentas
+3. Implementar optimizações próprias
+
+---
+
+**📚 Este projeto é uma ferramenta educativa completa para compreender profundamente as implicações de performance em JPA/Hibernate através de exemplos práticos, medições reais e aprendizado progressivo por conceitos específicos.**
