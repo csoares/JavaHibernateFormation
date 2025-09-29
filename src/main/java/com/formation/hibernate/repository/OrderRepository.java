@@ -150,6 +150,24 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findByStatus(String status, Pageable pageable);
 
     /*
+     * 🎓 MÉTODOS ESPECÍFICOS PARA GESTÃO DE BLOBS
+     */
+
+    // ✅ BOA PRÁTICA: Query que verifica existência de PDF sem carregar o BLOB
+    // VANTAGEM: Usa apenas metadados, não transfere dados pesados
+    // Performance: O(1) em vez de O(tamanho_do_blob)
+    @Query("SELECT CASE WHEN o.invoicePdf IS NOT NULL THEN true ELSE false END FROM Order o WHERE o.id = :orderId")
+    boolean orderHasPdf(@Param("orderId") Long orderId);
+
+    // ✅ BOA PRÁTICA: Projecção com metadata de BLOBs mas sem carregar os dados
+    // VANTAGEM: Fornece informação sobre PDF sem desperdício de memória
+    // RESULTADO: Lista eficiente com indicador de PDF disponível
+    @Query("SELECT o.id, o.orderNumber, o.totalAmount, " +
+           "CASE WHEN o.invoicePdf IS NOT NULL THEN true ELSE false END as hasPdf " +
+           "FROM Order o")
+    List<Object[]> findOrdersWithBlobMetadata();
+
+    /*
      * 🎓 MÉTODOS ADICIONAIS ÚTEIS (implementar conforme necessário)
      */
 
