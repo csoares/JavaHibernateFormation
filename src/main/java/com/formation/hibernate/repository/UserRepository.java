@@ -129,4 +129,22 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // Spring gera automaticamente: WHERE u.department.id = ?
     // Usa o índice idx_user_department definido na entidade
     Page<User> findByDepartmentId(Long departmentId, Pageable pageable);
+
+    /*
+     * 🎓 MÉTODOS ESPECÍFICOS PARA DEMONSTRAÇÃO DO PROBLEMA N+1
+     */
+
+    // ✅ BOA PRÁTICA: JOIN FETCH explícito para resolver N+1
+    // Alternativa ao EntityGraph usando JPQL directo
+    // Carrega User + Department numa única query
+    @Query("SELECT u FROM User u JOIN FETCH u.department d WHERE u.id = :id")
+    Optional<User> findByIdWithDepartmentJoinFetch(@Param("id") Long id);
+
+    // ✅ BOA PRÁTICA: EntityGraph para carregar todos os users com departments
+    // Resolve problema N+1 em operações de listagem
+    // Sem isto: 1 query para users + N queries para departments
+    // Com isto: 1 query apenas com JOIN
+    @EntityGraph(value = "User.withDepartment", type = EntityGraph.EntityGraphType.FETCH)
+    @Query("SELECT u FROM User u")
+    List<User> findAllWithDepartment();
 }
