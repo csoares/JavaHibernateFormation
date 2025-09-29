@@ -2,6 +2,156 @@
 
 Este projeto demonstra as **melhores e piores práticas** de JPA/Hibernate através de implementações comparativas, com medição de performance em tempo real.
 
+## 📚 Fundamentos Teóricos
+
+### 🧠 Conceitos Essenciais para Compreender
+
+Antes de mergulhar nas implementações práticas, é fundamental compreender os conceitos teóricos por trás das optimizações de performance em JPA/Hibernate:
+
+#### 🔄 **1. Lazy vs Eager Loading**
+- **Lazy Loading**: Carrega dados apenas quando explicitamente acessados
+  - ✅ **Vantagem**: Economia de memória e redução de queries desnecessárias
+  - ⚠️ **Cuidado**: Pode causar LazyInitializationException fora do contexto transacional
+  - 🎯 **Uso**: Padrão recomendado para relacionamentos (`@ManyToOne`, `@OneToMany`)
+
+- **Eager Loading**: Carrega dados imediatamente junto com a entidade principal
+  - ❌ **Desvantagem**: Pode carregar dados desnecessários
+  - ✅ **Vantagem**: Evita queries adicionais se os dados forem sempre necessários
+  - 🎯 **Uso**: Apenas quando se tem certeza de que os dados serão sempre usados
+
+#### 🔗 **2. O Problema N+1**
+**O que é**: Execução de 1 query principal + N queries adicionais (uma para cada resultado)
+
+**Exemplo prático**:
+```sql
+-- Query principal: buscar 100 users
+SELECT * FROM users LIMIT 100;
+
+-- N queries adicionais: uma para cada user
+SELECT * FROM departments WHERE id = 1;
+SELECT * FROM departments WHERE id = 2;
+-- ... 98 queries a mais
+```
+
+**Impacto**: 101 queries em vez de 1 query optimizada
+
+**Soluções**:
+- **EntityGraph**: Define quais relacionamentos carregar na query principal
+- **JOIN FETCH**: Força JOIN explícito na consulta JPQL
+- **DTO Projections**: Carrega apenas campos necessários numa única query
+
+#### 💾 **3. Gestão de BLOBs (Binary Large Objects)**
+**O que são**: Dados binários pesados (imagens, PDFs, vídeos) armazenados na BD
+
+**Problemas comuns**:
+- Carregamento desnecessário causa OutOfMemoryError
+- Transferência de dados massiva pela rede
+- Consultas lentas devido ao tamanho dos dados
+
+**Estratégias de optimização**:
+- **Lazy Loading obrigatório**: `@Basic(fetch = FetchType.LAZY)`
+- **Projeções sem BLOBs**: Consultas que excluem campos BLOB
+- **Endpoints separados**: Listar vs. Download
+- **Streaming**: Transferir BLOBs em chunks
+
+#### 📄 **4. Paginação Eficiente**
+**Por que necessária**: Evita carregar milhares de registos na memória
+
+**Componentes**:
+- **Page**: Dados da página actual
+- **Pageable**: Configuração (tamanho, número, ordenação)
+- **Sort**: Critérios de ordenação
+- **Metadata**: Total de elementos, páginas, etc.
+
+**Implementação correcta**:
+```java
+Page<User> findAll(Pageable pageable);  // ✅ Correcto
+List<User> findAll();                   // ❌ Perigoso com grandes volumes
+```
+
+#### 🎯 **5. EntityGraphs**
+**Finalidade**: Controlo fino sobre quais relacionamentos carregar
+
+**Tipos**:
+- **FETCH**: Carrega apenas os relacionamentos especificados
+- **LOAD**: Carrega os especificados + relacionamentos EAGER da entidade
+
+**Definição**:
+```java
+@NamedEntityGraph(
+    name = "User.withDepartment",
+    attributeNodes = @NamedAttributeNode("department")
+)
+```
+
+**Uso**:
+```java
+@EntityGraph("User.withDepartment")
+Optional<User> findByIdWithDepartment(Long id);
+```
+
+#### 🔍 **6. Índices de Base de Dados**
+**Finalidade**: Acelerar consultas através de estruturas de dados optimizadas
+
+**Quando criar**:
+- Colunas frequentemente pesquisadas (`WHERE`, `ORDER BY`)
+- Foreign keys para JOINs eficientes
+- Campos únicos (email, códigos)
+
+**Implementação JPA**:
+```java
+@Table(indexes = {
+    @Index(name = "idx_user_email", columnList = "email"),
+    @Index(name = "idx_user_department", columnList = "department_id")
+})
+```
+
+### 🎯 **Modelo de Dados Educativo**
+
+Este projeto utiliza um **domínio de e-commerce** familiar para demonstrar os conceitos:
+
+```
+👥 User (Utilizador)
+├── 🏢 Department (Departamento) - @ManyToOne
+└── 📦 Orders (Pedidos) - @OneToMany
+
+📦 Order (Pedido)
+├── 👤 User (Utilizador) - @ManyToOne  
+├── 📄 invoicePdf (PDF) - @Lob BLOB
+└── 🛒 OrderItems (Itens) - @OneToMany
+
+🛒 OrderItem (Item do Pedido)
+├── 📦 Order (Pedido) - @ManyToOne
+└── 🎁 Product (Produto) - @ManyToOne
+
+🎁 Product (Produto)
+├── 📁 Category (Categoria) - @ManyToOne
+└── 🖼️ imageData (Imagem) - @Lob BLOB
+```
+
+**Por que este modelo é ideal para aprendizado**:
+- **Relacionamentos comuns**: @ManyToOne, @OneToMany
+- **BLOBs realistas**: PDFs de facturas, imagens de produtos
+- **Cenários frequentes**: Listagens, paginação, filtros
+- **Volumes realistas**: 10K+ utilizadores, 100K+ pedidos
+
+### 🎓 **Progressão de Aprendizado**
+
+#### **Nível 1 - Conceitos Base**
+1. Compreender Lazy vs Eager
+2. Identificar o problema N+1
+3. Aplicar EntityGraphs básicos
+
+#### **Nível 2 - Optimizações**
+1. Implementar paginação eficiente
+2. Usar projeções DTO
+3. Gerir BLOBs adequadamente
+
+#### **Nível 3 - Performance Avançada**
+1. Combinar múltiplas optimizações
+2. Medir e monitorizar performance
+3. Diagnóstico de problemas reais
+
 ## 🎯 Objetivo
 
 Criar um ambiente prático para demonstrar:
