@@ -5,6 +5,7 @@
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/dto/UserSummaryDto.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/HibernatePerformanceApplication.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/dto/UserDto.java
+/Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/controller/ProductController.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/dto/DepartmentDto.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/dto/OrderDto.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/entity/Category.java
@@ -13,8 +14,11 @@
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/converter/OrderItemConverter.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/repository/OrderRepository.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/entity/Product.java
+/Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/repository/OrderItemRepository.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/controller/good/OrderGoodController.java
+/Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/controller/PaginationController.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/repository/ProductRepository.java
+/Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/controller/UserController.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/repository/CategoryRepository.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/entity/Order.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/dto/OrderSummaryDto.java
@@ -24,6 +28,7 @@
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/service/DataPopulationService.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/converter/CategoryConverter.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/dto/OrderItemDto.java
+/Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/controller/CategoryController.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/dto/CategoryDto.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/controller/DataController.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/dto/ProductDto.java
@@ -31,6 +36,8 @@
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/converter/UserConverter.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/config/JpaConfig.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/controller/good/UserGoodController.java
+/Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/controller/DepartmentController.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/repository/DepartmentRepository.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/entity/User.java
 /Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/repository/UserRepository.java
+/Users/csoares/Work/JavaHibernateFormation/src/main/java/com/formation/hibernate/controller/OrderController.java

@@ -59,4 +59,3 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     // @Query("SELECT c.name, COUNT(p) FROM Category c LEFT JOIN c.products p GROUP BY c.id, c.name")
     // List<Object[]> getCategoryProductCounts();
 }
-}
