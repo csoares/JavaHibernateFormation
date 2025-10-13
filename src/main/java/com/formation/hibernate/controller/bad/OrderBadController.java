@@ -63,11 +63,12 @@ public class OrderBadController {
         return performanceMonitor.measure(operationId,
             "Buscar pedido por ID SEM otimizações (múltiplas consultas - N+1)",
             () -> {
-                // ❌ MÁ PRÁTICA: findByIdWithoutRelations sem EntityGraph
-                // PROBLEMA: Carrega Order mas não as relações (user, department, orderItems)
+                // ❌ MÁ PRÁTICA: findByIdWithoutBlob - Native query excluding BLOB
+                // PROBLEMA: Carrega Order mas não as relações (user, department)
                 // RESULTADO: Cada acesso posterior dispara consulta separada (N+1)
-                // NOTE: Using custom query to avoid BLOB loading issues (Hibernate 6 bug)
-                Optional<Order> order = orderRepository.findByIdWithoutRelations(id);
+                // NOTE: Using native SQL to explicitly exclude invoice_pdf BLOB column
+                //       This is necessary because Hibernate 6 ignores @Basic(fetch=LAZY) for byte[]
+                Optional<Order> order = orderRepository.findByIdWithoutBlob(id);
 
                 if (order.isPresent()) {
                     Order o = order.get();

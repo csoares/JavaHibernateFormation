@@ -29,11 +29,13 @@ import java.util.Optional;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
-    // ❌ BAD: findById without BLOB exclusion - for demonstration only
-    // This method loads order WITHOUT user/department (causing N+1)
-    // And still loads the BLOB despite @Basic(fetch=LAZY)
-    @Query("SELECT o FROM Order o WHERE o.id = :id")
-    Optional<Order> findByIdWithoutRelations(@Param("id") Long id);
+    // ❌ BAD: Native query that explicitly EXCLUDES invoice_pdf BLOB column
+    // This prevents the "Bad value for type long" PostgreSQL error
+    // Still causes N+1 because it doesn't load user/department relations
+    @Query(value = "SELECT o.id, o.order_number, o.order_date, o.total_amount, o.status, o.user_id " +
+                   "FROM orders o WHERE o.id = :id",
+           nativeQuery = true)
+    Optional<Order> findByIdWithoutBlob(@Param("id") Long id);
 
     @EntityGraph(value = "Order.withUserAndDepartment", type = EntityGraph.EntityGraphType.FETCH)
     @Query("SELECT o FROM Order o WHERE o.id = :id")
