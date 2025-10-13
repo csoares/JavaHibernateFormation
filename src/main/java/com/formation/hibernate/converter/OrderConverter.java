@@ -43,9 +43,14 @@ public class OrderConverter {
             ));
         }
 
-        if (order.getOrderItems() != null && orderItemConverter != null) {
-            dto.setOrderItems(orderItemConverter.toDtoList(order.getOrderItems()));
-        }
+        // NOTE: OrderItems collection is NOT loaded by default to avoid BLOB loading issues
+        // In Hibernate 6, accessing orderItems can trigger loading of invoice_pdf BLOB
+        // If you need order items, load them explicitly with a specific query
+        // Example: Use OrderItemRepository.findByOrderId(orderId)
+
+        // if (order.getOrderItems() != null && orderItemConverter != null) {
+        //     dto.setOrderItems(orderItemConverter.toDtoList(order.getOrderItems()));
+        // }
 
         return dto;
     }
