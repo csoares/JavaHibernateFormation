@@ -64,12 +64,19 @@ public class UserBadController {
                     User u = user.get();
                     String departmentName = u.getDepartment() != null ? u.getDepartment().getName() : "N/A";
 
-                    // MÁ PRÁTICA: Acesso a coleção lazy triggera mais consultas
-                    int orderCount = u.getOrders() != null ? u.getOrders().size() : 0;
+                    // Convert to DTO (without loading orders to avoid BLOB issues)
+                    UserDto dto = new UserDto(u.getId(), u.getName(), u.getEmail(), u.getCreatedAt());
+                    if (u.getDepartment() != null) {
+                        dto.setDepartment(new com.formation.hibernate.dto.DepartmentDto(
+                            u.getDepartment().getId(),
+                            u.getDepartment().getName(),
+                            u.getDepartment().getDescription(),
+                            u.getDepartment().getBudget()
+                        ));
+                    }
 
-                    UserDto dto = userConverter.toDto(u);
-                    logger.warn("⚠️ Usuário encontrado com múltiplas consultas: {} (Departamento: {}, Orders: {})",
-                        dto.getName(), departmentName, orderCount);
+                    logger.warn("⚠️ Usuário encontrado com N+1: {} (Departamento: {})",
+                        dto.getName(), departmentName);
                     return ResponseEntity.ok(dto);
                 } else {
                     logger.warn("⚠️ Usuário não encontrado: {}", id);
