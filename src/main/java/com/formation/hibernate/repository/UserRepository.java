@@ -57,4 +57,20 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // Versão JPQL da solução anterior
     @Query("SELECT u FROM User u JOIN FETCH u.department")
     List<User> findAllWithDepartmentJoinFetch();
+
+    // 📊 MÉTODOS PARA DEMONSTRAÇÃO CLARA
+
+    // Pequeno (10 users) - Melhor para ensino
+    @Query(value = "SELECT * FROM users ORDER BY id LIMIT 10", nativeQuery = true)
+    List<User> findFirst10Users();
+
+    @Query("SELECT u FROM User u JOIN FETCH u.department WHERE u.id <= 10")
+    List<User> findFirst10UsersWithDepartment();
+
+    // Médio (1000 users) - Demonstração realista onde GOOD é claramente mais rápido
+    @Query(value = "SELECT * FROM users ORDER BY id LIMIT 1000", nativeQuery = true)
+    List<User> findFirst1000Users();
+
+    @Query("SELECT u FROM User u JOIN FETCH u.department WHERE u.id <= 1000")
+    List<User> findFirst1000UsersWithDepartment();
 }

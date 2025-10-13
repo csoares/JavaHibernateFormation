@@ -174,6 +174,138 @@ public class N1ProblemController {
     }
 
     /*
+     * 📊 DEMONSTRAÇÃO LIMITADA (10 users) - MAIS CLARA!
+     * Com apenas 10 users, a diferença de performance fica MUITO mais visível
+     */
+
+    @GetMapping("/batch-bad-limited")
+    @Transactional(readOnly = true)
+    public String get10UsersWithN1Problem() {
+        logger.warn("🚨 INICIANDO OPERAÇÃO LIMITADA (10 users) COM PROBLEMA N+1");
+
+        long startTime = System.currentTimeMillis();
+
+        // ❌ PROBLEMA: Query 1 - Busca 10 users
+        List<User> users = userRepository.findFirst10Users();
+
+        StringBuilder result = new StringBuilder("Users (Limited to 10):\n");
+
+        // ❌ PROBLEMA: Para cada User, mais uma query! (10 queries extras)
+        for (User user : users) {
+            String departmentName = user.getDepartment() != null ?
+                user.getDepartment().getName() : "Sem Departamento";
+
+            result.append(String.format("- %s (%s)\n", user.getName(), departmentName));
+        }
+
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
+
+        logger.error("❌ PROBLEMA N+1: {} users = 1 + {} queries = {} queries total! Tempo: {}ms",
+            users.size(), users.size(), users.size() + 1, duration);
+
+        result.append(String.format("\n⏱️  Total queries: %d | Tempo: %dms", users.size() + 1, duration));
+
+        return result.toString();
+    }
+
+    @GetMapping("/batch-good-limited")
+    @Transactional(readOnly = true)
+    public String get10UsersOptimized() {
+        logger.info("✅ INICIANDO OPERAÇÃO LIMITADA (10 users) OPTIMIZADA");
+
+        long startTime = System.currentTimeMillis();
+
+        // ✅ SOLUÇÃO: Uma query com JOIN para os 10 users
+        List<User> users = userRepository.findFirst10UsersWithDepartment();
+
+        StringBuilder result = new StringBuilder("Users (Limited to 10):\n");
+
+        // ✅ SEM QUERIES EXTRAS: Todos os departments já carregados!
+        for (User user : users) {
+            String departmentName = user.getDepartment() != null ?
+                user.getDepartment().getName() : "Sem Departamento";
+
+            result.append(String.format("- %s (%s)\n", user.getName(), departmentName));
+        }
+
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
+
+        logger.info("✅ OPTIMIZADO: {} users carregados com apenas 1 query! Tempo: {}ms", users.size(), duration);
+
+        result.append(String.format("\n⏱️  Total queries: 1 | Tempo: %dms", duration));
+
+        return result.toString();
+    }
+
+    /*
+     * 📊 DEMONSTRAÇÃO MÉDIA (1000 users) - REALISTA E CLARA!
+     * Sweet spot: mostra diferença clara sem overhead excessivo
+     */
+
+    @GetMapping("/batch-bad-medium")
+    @Transactional(readOnly = true)
+    public String get1000UsersWithN1Problem() {
+        logger.warn("🚨 INICIANDO OPERAÇÃO MÉDIA (1000 users) COM PROBLEMA N+1");
+
+        long startTime = System.currentTimeMillis();
+
+        // ❌ PROBLEMA: Query 1 - Busca 1000 users
+        List<User> users = userRepository.findFirst1000Users();
+
+        StringBuilder result = new StringBuilder("Users (Limited to 1000):\n");
+
+        // ❌ PROBLEMA: Para cada User, mais uma query! (1000 queries extras)
+        for (User user : users) {
+            String departmentName = user.getDepartment() != null ?
+                user.getDepartment().getName() : "Sem Departamento";
+
+            result.append(String.format("- %s (%s)\n", user.getName(), departmentName));
+        }
+
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
+
+        logger.error("❌ PROBLEMA N+1: {} users = 1 + {} queries = {} queries total! Tempo: {}ms",
+            users.size(), users.size(), users.size() + 1, duration);
+
+        result.append(String.format("\n⏱️  Total queries: %d | Tempo: %dms", users.size() + 1, duration));
+
+        return result.toString();
+    }
+
+    @GetMapping("/batch-good-medium")
+    @Transactional(readOnly = true)
+    public String get1000UsersOptimized() {
+        logger.info("✅ INICIANDO OPERAÇÃO MÉDIA (1000 users) OPTIMIZADA");
+
+        long startTime = System.currentTimeMillis();
+
+        // ✅ SOLUÇÃO: Uma query com JOIN para os 1000 users
+        List<User> users = userRepository.findFirst1000UsersWithDepartment();
+
+        StringBuilder result = new StringBuilder("Users (Limited to 1000):\n");
+
+        // ✅ SEM QUERIES EXTRAS: Todos os departments já carregados!
+        for (User user : users) {
+            String departmentName = user.getDepartment() != null ?
+                user.getDepartment().getName() : "Sem Departamento";
+
+            result.append(String.format("- %s (%s)\n", user.getName(), departmentName));
+        }
+
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
+
+        logger.info("✅ OPTIMIZADO: {} users carregados com apenas 1 query! Tempo: {}ms", users.size(), duration);
+
+        result.append(String.format("\n⏱️  Total queries: 1 | Tempo: %dms", duration));
+
+        return result.toString();
+    }
+
+    /*
      * 📈 COMPARAÇÃO SIMPLES
      */
 
@@ -181,16 +313,25 @@ public class N1ProblemController {
     public String getComparison() {
         return """
             🔍 COMPARAÇÃO N+1 PROBLEM:
-            
+
             ❌ PROBLEMA:
             - GET /api/n1-demo/bad/{id} - 2 queries
-            - GET /api/n1-demo/batch-bad - 1+N queries
-            
+            - GET /api/n1-demo/batch-bad-limited - 11 queries (10 users)
+            - GET /api/n1-demo/batch-bad-medium - 1,001 queries (1000 users) ⭐
+            - GET /api/n1-demo/batch-bad - 1,001 queries (1.1M users)
+
             ✅ SOLUÇÕES:
             - GET /api/n1-demo/good-entitygraph/{id} - 1 query
-            - GET /api/n1-demo/good-joinfetch/{id} - 1 query  
-            - GET /api/n1-demo/batch-good - 1 query
-            
+            - GET /api/n1-demo/good-joinfetch/{id} - 1 query
+            - GET /api/n1-demo/batch-good-limited - 1 query (10 users)
+            - GET /api/n1-demo/batch-good-medium - 1 query (1000 users) ⭐
+            - GET /api/n1-demo/batch-good - 1 query (1.1M users)
+
+            💡 RECOMENDAÇÃO:
+            - *-limited (10): Melhor para ensino - diferença muito clara
+            - *-medium (1000): Melhor para demonstrar ganho real - ⭐ RECOMENDADO ⭐
+            - Full (1.1M): Demonstra overhead e problemas de escala
+
             💡 TESTE: Active logs SQL e veja a diferença!
             logging.level.org.hibernate.SQL=DEBUG
             """;
