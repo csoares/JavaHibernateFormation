@@ -29,17 +29,26 @@ import java.util.Optional;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
-    // ❌ BAD: Native query that explicitly EXCLUDES invoice_pdf BLOB column
-    // This prevents the "Bad value for type long" PostgreSQL error
-    // Still causes N+1 because it doesn't load user/department relations
+    // ❌ BAD: Native query that EXCLUDES BLOB and relations
+    // Returns only Order data without user/department (forces N+1)
+    // Result: Will need separate queries to load user and department
     @Query(value = "SELECT o.id, o.order_number, o.order_date, o.total_amount, o.status, o.user_id " +
                    "FROM orders o WHERE o.id = :id",
            nativeQuery = true)
-    Optional<Order> findByIdWithoutBlob(@Param("id") Long id);
+    Optional<Object[]> findOrderWithoutBlobOrRelationsNative(@Param("id") Long id);
 
-    @EntityGraph(value = "Order.withUserAndDepartment", type = EntityGraph.EntityGraphType.FETCH)
-    @Query("SELECT o FROM Order o WHERE o.id = :id")
-    Optional<Order> findByIdWithUserAndDepartment(@Param("id") Long id);
+    // ✅ GOOD: Native query with explicit JOINs and NO BLOB
+    // Returns Order entity with user and department loaded in single query
+    // IMPORTANT: Still loads invoice_pdf due to Hibernate 6 limitations
+    @Query(value = "SELECT o.id, o.order_number, o.order_date, o.total_amount, o.status, o.user_id, " +
+                   "u.id as user_id2, u.name as user_name, u.email as user_email, u.created_at as user_created, " +
+                   "d.id as dept_id, d.name as dept_name " +
+                   "FROM orders o " +
+                   "JOIN users u ON o.user_id = u.id " +
+                   "LEFT JOIN departments d ON u.department_id = d.id " +
+                   "WHERE o.id = :id",
+           nativeQuery = true)
+    Optional<Object[]> findOrderWithUserAndDepartmentNative(@Param("id") Long id);
 
     @Query("SELECT o FROM Order o " +
            "JOIN FETCH o.user u " +

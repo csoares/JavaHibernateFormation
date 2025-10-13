@@ -3,6 +3,7 @@ package com.formation.hibernate.controller.good;
 import com.formation.hibernate.converter.OrderConverter;
 import com.formation.hibernate.dto.OrderDto;
 import com.formation.hibernate.dto.OrderSummaryDto;
+import com.formation.hibernate.dto.UserSummaryDto;
 import com.formation.hibernate.entity.Order;
 import com.formation.hibernate.repository.OrderRepository;
 import com.formation.hibernate.util.PerformanceMonitor;
@@ -61,7 +62,7 @@ public class OrderGoodController {
     /*
      * 🎓 ENDPOINT GET BY ID - Demonstração de Optimizações com BLOB
      */
-    
+
     // ✅ BOA PRÁTICA: @Transactional(readOnly = true) para consultas
     // VANTAGEM: Hibernate não faz dirty checking (mais eficiente)
     // VANTAGEM: Base de dados pode optimizar consultas read-only
@@ -71,20 +72,54 @@ public class OrderGoodController {
         String operationId = "getOrderById-good-" + id;
 
         return performanceMonitor.measure(operationId,
-            "Buscar pedido por ID com EntityGraph (User + Department)",
+            "Buscar pedido por ID com JOINs otimizados (User + Department em 1 query)",
             () -> {
-                // ✅ BOA PRÁTICA: EntityGraph estratégico para BLOBS
-                // VANTAGEM: Carrega Order + User + Department numa única query
-                // IMPORTANTE: NÃO carrega o BLOB (invoicePdf) desnecessariamente
-                // RESULTADO: Máxima eficiência sem desperdício de memória
-                Optional<Order> order = orderRepository.findByIdWithUserAndDepartment(id);
+                // ✅ BOA PRÁTICA: Native query com JOINs explícitos e SEM BLOB
+                // VANTAGEM: Carrega Order + User + Department numa única query SQL
+                // VANTAGEM: NÃO carrega o BLOB (invoicePdf) desnecessariamente
+                // VANTAGEM: Retorna Object[] para evitar carregar entidade completa
+                // RESULTADO: Máxima eficiência - 1 query em vez de 3 (N+1)
+                // NOTE: Using native SQL returning Object[] to avoid BLOB loading
+                //       This is necessary because Hibernate 6 ignores @Basic(fetch=LAZY) for byte[]
+                Optional<Object[]> orderData = orderRepository.findOrderWithUserAndDepartmentNative(id);
 
-                if (order.isPresent()) {
-                    OrderDto dto = orderConverter.toDto(order.get());
-                    logger.info("✅ Pedido encontrado: {} (User: {}, Department: {})",
-                        dto.getOrderNumber(),
-                        dto.getUser() != null ? dto.getUser().getName() : "N/A",
-                        dto.getUser() != null ? dto.getUser().getDepartmentName() : "N/A");
+                if (orderData.isPresent()) {
+                    Object[] wrapper = orderData.get();
+                    // NOTE: Spring Data JPA wraps native query results in Object[]
+                    // So wrapper[0] contains the actual row data as Object[]
+                    Object[] row = (Object[]) wrapper[0];
+
+                    // Manual mapping from Object[] to OrderDto to avoid loading Order entity
+                    // Columns: id, order_number, order_date, total_amount, status, user_id,
+                    //          user_id2, user_name, user_email, user_created, dept_id, dept_name
+                    // Note: PostgreSQL native queries return BigInteger for BIGINT columns
+                    OrderDto dto = new OrderDto(
+                        ((Number) row[0]).longValue(),                              // id
+                        (String) row[1],                                            // order_number
+                        ((java.sql.Timestamp) row[2]).toLocalDateTime(),            // order_date
+                        (BigDecimal) row[3],                                        // total_amount
+                        Order.OrderStatus.valueOf((String) row[4])                 // status
+                    );
+
+                    // ✅ BOA PRÁTICA: Dados de User e Department vêm na mesma query (JOINs)
+                    // VANTAGEM: Sem N+1 problem - tudo numa única consulta SQL
+                    // RESULTADO: Performance máxima com JOINs otimizados
+                    String userName = (String) row[7];        // user_name
+                    String userEmail = (String) row[8];       // user_email
+                    java.sql.Timestamp userCreatedTs = (java.sql.Timestamp) row[9]; // user_created
+                    LocalDateTime userCreated = userCreatedTs != null ? userCreatedTs.toLocalDateTime() : null;
+                    String departmentName = (String) row[11]; // dept_name
+
+                    dto.setUser(new UserSummaryDto(
+                        ((Number) row[6]).longValue(),                              // user_id2
+                        userName,
+                        userEmail,
+                        userCreated,
+                        departmentName
+                    ));
+
+                    logger.info("✅ Pedido encontrado com 1 query otimizada: {} (User: {}, Department: {})",
+                        dto.getOrderNumber(), userName, departmentName != null ? departmentName : "N/A");
                     return ResponseEntity.ok(dto);
                 } else {
                     logger.warn("⚠️ Pedido não encontrado: {}", id);

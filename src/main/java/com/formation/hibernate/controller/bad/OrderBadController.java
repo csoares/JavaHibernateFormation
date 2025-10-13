@@ -2,8 +2,11 @@ package com.formation.hibernate.controller.bad;
 
 import com.formation.hibernate.converter.OrderConverter;
 import com.formation.hibernate.dto.OrderDto;
+import com.formation.hibernate.dto.UserSummaryDto;
 import com.formation.hibernate.entity.Order;
+import com.formation.hibernate.entity.User;
 import com.formation.hibernate.repository.OrderRepository;
+import com.formation.hibernate.repository.UserRepository;
 import com.formation.hibernate.util.PerformanceMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,11 +46,13 @@ public class OrderBadController {
     private static final Logger logger = LoggerFactory.getLogger(OrderBadController.class);
 
     private final OrderRepository orderRepository;
+    private final UserRepository userRepository;
     private final OrderConverter orderConverter;
     private final PerformanceMonitor performanceMonitor;
 
-    public OrderBadController(OrderRepository orderRepository, OrderConverter orderConverter, PerformanceMonitor performanceMonitor) {
+    public OrderBadController(OrderRepository orderRepository, UserRepository userRepository, OrderConverter orderConverter, PerformanceMonitor performanceMonitor) {
         this.orderRepository = orderRepository;
+        this.userRepository = userRepository;
         this.orderConverter = orderConverter;
         this.performanceMonitor = performanceMonitor;
     }
@@ -63,31 +68,58 @@ public class OrderBadController {
         return performanceMonitor.measure(operationId,
             "Buscar pedido por ID SEM otimizações (múltiplas consultas - N+1)",
             () -> {
-                // ❌ MÁ PRÁTICA: findByIdWithoutBlob - Native query excluding BLOB
-                // PROBLEMA: Carrega Order mas não as relações (user, department)
-                // RESULTADO: Cada acesso posterior dispara consulta separada (N+1)
-                // NOTE: Using native SQL to explicitly exclude invoice_pdf BLOB column
+                // ❌ MÁ PRÁTICA: Native query that EXCLUDES BLOB and relations
+                // PROBLEMA: Retorna apenas dados do Order, sem carregar user/department
+                // RESULTADO: Cada acesso a relações dispara consulta separada (N+1)
+                // NOTE: Using native SQL returning Object[] to avoid BLOB loading
                 //       This is necessary because Hibernate 6 ignores @Basic(fetch=LAZY) for byte[]
-                Optional<Order> order = orderRepository.findByIdWithoutBlob(id);
+                Optional<Object[]> orderData = orderRepository.findOrderWithoutBlobOrRelationsNative(id);
 
-                if (order.isPresent()) {
-                    Order o = order.get();
+                if (orderData.isPresent()) {
+                    Object[] wrapper = orderData.get();
+                    // NOTE: Spring Data JPA wraps native query results in Object[]
+                    // So wrapper[0] contains the actual row data as Object[]
+                    Object[] row = (Object[]) wrapper[0];
 
-                    // ❌ MÁ PRÁTICA: Acessos lazy disparam consultas extras
-                    // PROBLEMA: o.getUser() dispara SELECT do User
-                    // PROBLEMA: o.getUser().getDepartment() dispara SELECT do Department
-                    // RESULTADO: 3 queries em vez de 1 com JOIN
-                    String userName = o.getUser() != null ? o.getUser().getName() : "N/A";
-                    String departmentName = o.getUser() != null && o.getUser().getDepartment() != null ?
-                        o.getUser().getDepartment().getName() : "N/A";
+                    // Manual mapping from Object[] to OrderDto to avoid loading Order entity
+                    // Columns: id, order_number, order_date, total_amount, status, user_id
+                    // Note: PostgreSQL native queries return BigInteger for BIGINT columns
+                    OrderDto dto = new OrderDto(
+                        ((Number) row[0]).longValue(),                              // id
+                        (String) row[1],                                            // order_number
+                        ((java.sql.Timestamp) row[2]).toLocalDateTime(),            // order_date
+                        (BigDecimal) row[3],                                        // total_amount
+                        Order.OrderStatus.valueOf((String) row[4])                 // status
+                    );
 
-                    // NOTE: Avoided orderItems and invoicePdf access to prevent BLOB loading issues
-                    // In Hibernate 6, accessing collections can trigger BLOB loading
-                    // even with @Basic(fetch = FetchType.LAZY)
+                    // ❌ MÁ PRÁTICA: Separate queries for user and department (N+1 problem)
+                    // PROBLEMA: Cada relação dispara SELECT separado
+                    // RESULTADO: 3 queries em vez de 1 com JOINs
+                    Long userId = ((Number) row[5]).longValue();
+                    Optional<User> userOpt = userRepository.findById(userId);  // Query 2: SELECT user
 
-                    OrderDto dto = orderConverter.toDto(o);
-                    logger.warn("⚠️ Pedido encontrado com múltiplas consultas (N+1): {} (User: {}, Dept: {})",
-                        dto.getOrderNumber(), userName, departmentName);
+                    if (userOpt.isPresent()) {
+                        User user = userOpt.get();
+                        String userName = user.getName();
+                        String departmentName = "N/A";
+
+                        // ❌ MÁ PRÁTICA: Lazy loading dispara consulta extra para department
+                        if (user.getDepartment() != null) {
+                            departmentName = user.getDepartment().getName();  // Query 3: SELECT department
+                        }
+
+                        dto.setUser(new UserSummaryDto(
+                            user.getId(),
+                            userName,
+                            user.getEmail(),
+                            user.getCreatedAt(),
+                            departmentName
+                        ));
+
+                        logger.warn("⚠️ Pedido encontrado com múltiplas consultas (N+1): {} (User: {}, Dept: {})",
+                            dto.getOrderNumber(), userName, departmentName);
+                    }
+
                     return ResponseEntity.ok(dto);
                 } else {
                     logger.warn("⚠️ Pedido não encontrado: {}", id);

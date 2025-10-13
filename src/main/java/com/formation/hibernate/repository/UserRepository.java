@@ -39,6 +39,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "FROM User u LEFT JOIN u.department d")
     List<com.formation.hibernate.dto.UserSummaryDto> findAllUserSummaries();
 
+    @Query("SELECT new com.formation.hibernate.dto.UserSummaryDto(u.id, u.name, u.email, u.createdAt, d.name) " +
+           "FROM User u LEFT JOIN u.department d")
+    Page<com.formation.hibernate.dto.UserSummaryDto> findAllUserSummariesPaginated(Pageable pageable);
+
     @EntityGraph(value = "User.withDepartment", type = EntityGraph.EntityGraphType.FETCH)
     Page<User> findAll(Pageable pageable);
 
