@@ -88,19 +88,44 @@ public class UserBadController {
     // MÁ PRÁTICA: Sem paginação, carrega todos os registros
     @GetMapping
     @Transactional(readOnly = true)
-    public ResponseEntity<List<UserDto>> getAllUsers() {
+    public ResponseEntity<List<UserDto>> getAllUsers(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         String operationId = "getAllUsers-bad";
 
         return performanceMonitor.measure(operationId,
-            "Buscar TODOS os usuários SEM paginação (PERIGOSO!)",
+            "Buscar usuários SEM otimização (N+1 problem!)",
             () -> {
-                // MÁ PRÁTICA: findAll() sem paginação carrega TODOS os registros
-                List<User> users = userRepository.findAll();
+                List<User> users;
+
+                if (page != null && size != null) {
+                    // MÁ PRÁTICA: Manual pagination implementation (inefficient)
+                    // Better to use Spring Data's Pageable, but this demonstrates the concept
+                    List<User> allUsers = userRepository.findAll();
+                    int start = page * size;
+                    int end = Math.min(start + size, allUsers.size());
+
+                    if (start >= allUsers.size()) {
+                        users = List.of();
+                    } else {
+                        users = allUsers.subList(start, end);
+                    }
+
+                    logger.error("🚨 MÁ PRÁTICA! Carregados {} usuários total para retornar apenas {} (página {})",
+                        allUsers.size(), users.size(), page);
+                } else {
+                    // MÁ PRÁTICA: findAll() sem paginação carrega TODOS os registros
+                    users = userRepository.findAll();
+
+                    logger.error("🚨 CUIDADO! Carregados {} usuários SEM paginação - pode causar OutOfMemoryError!",
+                        users.size());
+                }
 
                 // MÁ PRÁTICA: Conversão para DTO força carregamento de todas as relações
+                // Isso causará N+1: 1 query para users + N queries para departments
                 List<UserDto> userDtos = userConverter.toDtoList(users);
 
-                logger.error("🚨 CUIDADO! Carregados {} usuários SEM paginação - pode causar OutOfMemoryError!",
+                logger.error("🚨 N+1 PROBLEM! {} consultas separadas para carregar departments!",
                     users.size());
 
                 return ResponseEntity.ok(userDtos);
