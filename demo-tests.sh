@@ -133,20 +133,23 @@ compare_endpoints() {
     echo ""
 }
 
-# Show branch menu
-echo -e "${CYAN}========================================${NC}"
-echo -e "${CYAN}SELECT YOUR CURRENT BRANCH:${NC}"
-echo -e "${CYAN}========================================${NC}"
-echo ""
-echo "  1) main          - Full-featured best practices demo"
-echo "  2) badmain       - Anti-patterns demonstration"
-echo "  3) 001-n1problem - N+1 query problem demo"
-echo "  4) 002-pagination - Pagination strategies demo"
-echo "  5) 003-blob-management - BLOB loading demo"
-echo ""
-read -p "Enter choice [1-5]: " BRANCH_CHOICE
+# Main loop - allows returning to menu
+while true; do
+    # Show branch menu
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}SELECT YOUR CURRENT BRANCH:${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    echo "  1) main          - Full-featured best practices demo"
+    echo "  2) badmain       - Anti-patterns demonstration"
+    echo "  3) 001-n1problem - N+1 query problem demo"
+    echo "  4) 002-pagination - Pagination strategies demo"
+    echo "  5) 003-blob-management - BLOB loading demo"
+    echo "  6) Exit"
+    echo ""
+    read -p "Enter choice [1-6]: " BRANCH_CHOICE
 
-case $BRANCH_CHOICE in
+    case $BRANCH_CHOICE in
     1)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}MAIN BRANCH - Best Practices Demo${NC}"
@@ -221,12 +224,18 @@ case $BRANCH_CHOICE in
                 echo -e "\n${CYAN}═══ DTO PROJECTION EFFICIENCY ═══${NC}\n"
                 echo "DTO projections load only required fields"
                 echo ""
+                echo -e "${YELLOW}Note:${NC} Performance may be similar for small datasets (100 users)"
+                echo "DTO benefits scale with volume: larger payloads = bigger difference"
+                echo ""
+                echo "Full entities load: User + complete Department (id, name, description, budget)"
+                echo "DTO projection loads: User + only department.name (~25% less data)"
+                echo ""
 
                 compare_endpoints \
                     "Full entities (all fields loaded)" \
                     "${APP_URL}/api/good/users?page=0&size=100" \
                     "DTO projection (selected fields only)" \
-                    "${APP_URL}/api/good/users/summaries"
+                    "${APP_URL}/api/good/users/summaries/paginated?page=0&size=100"
                 ;;
         esac
         ;;
@@ -376,33 +385,46 @@ case $BRANCH_CHOICE in
         fi
         ;;
 
-    *)
-        echo -e "${RED}Invalid choice${NC}"
-        exit 1
+    6)
+        echo ""
+        echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}Thanks for using the Hibernate Performance Demo!${NC}"
+        echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${CYAN}Tips for deeper analysis:${NC}"
+        echo ""
+        echo -e "${YELLOW}📊 View SQL logs:${NC}"
+        echo "   tail -f spring-boot.log | grep 'org.hibernate.SQL'"
+        echo ""
+        echo -e "${YELLOW}📈 Monitor database performance:${NC}"
+        echo "   docker exec -it hibernate-postgres psql -U hibernate_user -d hibernate_formation"
+        echo ""
+        echo -e "${YELLOW}💾 Check memory usage:${NC}"
+        echo "   docker stats hibernate-postgres"
+        echo ""
+        echo -e "${YELLOW}🔍 View Hibernate statistics:${NC}"
+        echo "   Check application logs for Session Metrics"
+        echo ""
+        echo -e "${CYAN}Next steps:${NC}"
+        echo "  • Switch branches to compare different implementations"
+        echo "  • Monitor SQL queries in logs while running tests"
+        echo "  • Try different configuration profiles (good-performance vs bad-performance)"
+        echo ""
+        exit 0
         ;;
-esac
 
-echo ""
-echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}Demo completed!${NC}"
-echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-echo ""
-echo -e "${CYAN}Tips for deeper analysis:${NC}"
-echo ""
-echo -e "${YELLOW}📊 View SQL logs:${NC}"
-echo "   docker-compose logs -f hibernate-app | grep 'Hibernate:'"
-echo ""
-echo -e "${YELLOW}📈 Monitor database performance:${NC}"
-echo "   docker exec -it hibernate-postgres pg_top -U hibernate_user -d hibernate_formation"
-echo ""
-echo -e "${YELLOW}💾 Check memory usage:${NC}"
-echo "   docker stats hibernate-postgres"
-echo ""
-echo -e "${YELLOW}🔍 View Hibernate statistics:${NC}"
-echo "   Check application logs for Session Metrics"
-echo ""
-echo -e "${CYAN}Next steps:${NC}"
-echo "  • Switch branches to compare different implementations"
-echo "  • Monitor SQL queries in logs while running tests"
-echo "  • Try different configuration profiles (good-performance vs bad-performance)"
-echo ""
+    *)
+        echo -e "${RED}Invalid choice. Please enter 1-6.${NC}"
+        echo ""
+        continue
+        ;;
+    esac
+
+    echo ""
+    echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}Test completed!${NC}"
+    echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
+    echo ""
+    read -p "Press Enter to return to main menu..."
+    echo ""
+done
