@@ -29,6 +29,11 @@ import java.util.Optional;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
+    // ❌ BAD: findById without BLOB exclusion - for demonstration only
+    // This method loads order WITHOUT user/department (causing N+1)
+    // And still loads the BLOB despite @Basic(fetch=LAZY)
+    @Query("SELECT o FROM Order o WHERE o.id = :id")
+    Optional<Order> findByIdWithoutRelations(@Param("id") Long id);
 
     @EntityGraph(value = "Order.withUserAndDepartment", type = EntityGraph.EntityGraphType.FETCH)
     @Query("SELECT o FROM Order o WHERE o.id = :id")

@@ -63,10 +63,11 @@ public class OrderBadController {
         return performanceMonitor.measure(operationId,
             "Buscar pedido por ID SEM otimizações (múltiplas consultas - N+1)",
             () -> {
-                // ❌ MÁ PRÁTICA: findById sem EntityGraph
+                // ❌ MÁ PRÁTICA: findByIdWithoutRelations sem EntityGraph
                 // PROBLEMA: Carrega Order mas não as relações (user, department, orderItems)
                 // RESULTADO: Cada acesso posterior dispara consulta separada (N+1)
-                Optional<Order> order = orderRepository.findById(id);
+                // NOTE: Using custom query to avoid BLOB loading issues (Hibernate 6 bug)
+                Optional<Order> order = orderRepository.findByIdWithoutRelations(id);
 
                 if (order.isPresent()) {
                     Order o = order.get();
@@ -79,18 +80,13 @@ public class OrderBadController {
                     String departmentName = o.getUser() != null && o.getUser().getDepartment() != null ?
                         o.getUser().getDepartment().getName() : "N/A";
 
-                    // ❌ MÁ PRÁTICA: Acesso a colecção lazy dispara mais consultas
-                    // PROBLEMA: o.getOrderItems() dispara SELECT de todos os OrderItems
-                    // PROBLEMA: .size() força carregamento completo da colecção
-                    // RESULTADO: Mais 1-2 queries desnecessárias
-                    int itemCount = o.getOrderItems() != null ? o.getOrderItems().size() : 0;
-
-                    // NOTE: Avoided invoicePdf access to prevent BLOB loading issues
-                    // BLOB fields should only be loaded when explicitly needed
+                    // NOTE: Avoided orderItems and invoicePdf access to prevent BLOB loading issues
+                    // In Hibernate 6, accessing collections can trigger BLOB loading
+                    // even with @Basic(fetch = FetchType.LAZY)
 
                     OrderDto dto = orderConverter.toDto(o);
-                    logger.warn("⚠️ Pedido encontrado com múltiplas consultas (N+1): {} (User: {}, Dept: {}, Items: {})",
-                        dto.getOrderNumber(), userName, departmentName, itemCount);
+                    logger.warn("⚠️ Pedido encontrado com múltiplas consultas (N+1): {} (User: {}, Dept: {})",
+                        dto.getOrderNumber(), userName, departmentName);
                     return ResponseEntity.ok(dto);
                 } else {
                     logger.warn("⚠️ Pedido não encontrado: {}", id);
