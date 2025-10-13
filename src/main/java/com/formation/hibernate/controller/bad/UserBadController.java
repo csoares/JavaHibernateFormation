@@ -47,8 +47,9 @@ public class UserBadController {
         this.performanceMonitor = performanceMonitor;
     }
 
-    // MÁ PRÁTICA: Sem transação read-only, sem EntityGraph
+    // MÁ PRÁTICA: Sem EntityGraph (mas precisa transação para lazy loading funcionar)
     @GetMapping("/{id}")
+    @Transactional(readOnly = true)
     public ResponseEntity<UserDto> getUserById(@PathVariable Long id) {
         String operationId = "getUserById-bad-" + id;
 
@@ -63,12 +64,19 @@ public class UserBadController {
                     User u = user.get();
                     String departmentName = u.getDepartment() != null ? u.getDepartment().getName() : "N/A";
 
-                    // MÁ PRÁTICA: Acesso a coleção lazy triggera mais consultas
-                    int orderCount = u.getOrders() != null ? u.getOrders().size() : 0;
+                    // Convert to DTO (without loading orders to avoid BLOB issues)
+                    UserDto dto = new UserDto(u.getId(), u.getName(), u.getEmail(), u.getCreatedAt());
+                    if (u.getDepartment() != null) {
+                        dto.setDepartment(new com.formation.hibernate.dto.DepartmentDto(
+                            u.getDepartment().getId(),
+                            u.getDepartment().getName(),
+                            u.getDepartment().getDescription(),
+                            u.getDepartment().getBudget()
+                        ));
+                    }
 
-                    UserDto dto = userConverter.toDto(u);
-                    logger.warn("⚠️ Usuário encontrado com múltiplas consultas: {} (Departamento: {}, Orders: {})",
-                        dto.getName(), departmentName, orderCount);
+                    logger.warn("⚠️ Usuário encontrado com N+1: {} (Departamento: {})",
+                        dto.getName(), departmentName);
                     return ResponseEntity.ok(dto);
                 } else {
                     logger.warn("⚠️ Usuário não encontrado: {}", id);
@@ -80,19 +88,44 @@ public class UserBadController {
     // MÁ PRÁTICA: Sem paginação, carrega todos os registros
     @GetMapping
     @Transactional(readOnly = true)
-    public ResponseEntity<List<UserDto>> getAllUsers() {
+    public ResponseEntity<List<UserDto>> getAllUsers(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         String operationId = "getAllUsers-bad";
 
         return performanceMonitor.measure(operationId,
-            "Buscar TODOS os usuários SEM paginação (PERIGOSO!)",
+            "Buscar usuários SEM otimização (N+1 problem!)",
             () -> {
-                // MÁ PRÁTICA: findAll() sem paginação carrega TODOS os registros
-                List<User> users = userRepository.findAll();
+                List<User> users;
+
+                if (page != null && size != null) {
+                    // MÁ PRÁTICA: Manual pagination implementation (inefficient)
+                    // Better to use Spring Data's Pageable, but this demonstrates the concept
+                    List<User> allUsers = userRepository.findAll();
+                    int start = page * size;
+                    int end = Math.min(start + size, allUsers.size());
+
+                    if (start >= allUsers.size()) {
+                        users = List.of();
+                    } else {
+                        users = allUsers.subList(start, end);
+                    }
+
+                    logger.error("🚨 MÁ PRÁTICA! Carregados {} usuários total para retornar apenas {} (página {})",
+                        allUsers.size(), users.size(), page);
+                } else {
+                    // MÁ PRÁTICA: findAll() sem paginação carrega TODOS os registros
+                    users = userRepository.findAll();
+
+                    logger.error("🚨 CUIDADO! Carregados {} usuários SEM paginação - pode causar OutOfMemoryError!",
+                        users.size());
+                }
 
                 // MÁ PRÁTICA: Conversão para DTO força carregamento de todas as relações
+                // Isso causará N+1: 1 query para users + N queries para departments
                 List<UserDto> userDtos = userConverter.toDtoList(users);
 
-                logger.error("🚨 CUIDADO! Carregados {} usuários SEM paginação - pode causar OutOfMemoryError!",
+                logger.error("🚨 N+1 PROBLEM! {} consultas separadas para carregar departments!",
                     users.size());
 
                 return ResponseEntity.ok(userDtos);
