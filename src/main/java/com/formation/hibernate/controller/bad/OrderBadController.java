@@ -52,16 +52,16 @@ public class OrderBadController {
         this.performanceMonitor = performanceMonitor;
     }
 
-    // ❌ MÁ PRÁTICA: Sem transação read-only, sem EntityGraph
-    // PROBLEMA: Sem @Transactional(readOnly = true) desperdiça recursos
+    // ❌ MÁ PRÁTICA: Sem EntityGraph (mas precisa transação para lazy loading funcionar)
     // PROBLEMA: Sem EntityGraph causa múltiplas consultas separadas
-    // RESULTADO: N+1 problem + carregamento potencial de BLOB desnecessário
+    // RESULTADO: N+1 problem - 1 query para order + 1 para user + 1 para department
     @GetMapping("/{id}")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public ResponseEntity<OrderDto> getOrderById(@PathVariable Long id) {
         String operationId = "getOrderById-bad-" + id;
 
         return performanceMonitor.measure(operationId,
-            "Buscar pedido por ID SEM otimizações (múltiplas consultas)",
+            "Buscar pedido por ID SEM otimizações (múltiplas consultas - N+1)",
             () -> {
                 // ❌ MÁ PRÁTICA: findById sem EntityGraph
                 // PROBLEMA: Carrega Order mas não as relações (user, department, orderItems)
@@ -85,14 +85,12 @@ public class OrderBadController {
                     // RESULTADO: Mais 1-2 queries desnecessárias
                     int itemCount = o.getOrderItems() != null ? o.getOrderItems().size() : 0;
 
-                    // ❌ MÁ PRÁTICA: Verificação de BLOB pode carregar dados pesados
-                    // PROBLEMA: Dependendo da implementação JPA, pode carregar o BLOB inteiro
-                    // RESULTADO: Potencial carregamento de MB de dados só para verificar se existe
-                    boolean hasPdf = o.getInvoicePdf() != null;
+                    // NOTE: Avoided invoicePdf access to prevent BLOB loading issues
+                    // BLOB fields should only be loaded when explicitly needed
 
                     OrderDto dto = orderConverter.toDto(o);
-                    logger.warn("⚠️ Pedido encontrado com múltiplas consultas: {} (User: {}, Dept: {}, Items: {}, PDF: {})",
-                        dto.getOrderNumber(), userName, departmentName, itemCount, hasPdf);
+                    logger.warn("⚠️ Pedido encontrado com múltiplas consultas (N+1): {} (User: {}, Dept: {}, Items: {})",
+                        dto.getOrderNumber(), userName, departmentName, itemCount);
                     return ResponseEntity.ok(dto);
                 } else {
                     logger.warn("⚠️ Pedido não encontrado: {}", id);
