@@ -47,8 +47,9 @@ public class UserBadController {
         this.performanceMonitor = performanceMonitor;
     }
 
-    // MÁ PRÁTICA: Sem transação read-only, sem EntityGraph
+    // MÁ PRÁTICA: Sem EntityGraph (mas precisa transação para lazy loading funcionar)
     @GetMapping("/{id}")
+    @Transactional(readOnly = true)
     public ResponseEntity<UserDto> getUserById(@PathVariable Long id) {
         String operationId = "getUserById-bad-" + id;
 
