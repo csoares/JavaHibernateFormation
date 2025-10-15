@@ -65,9 +65,8 @@ public class Order {
     @JsonIgnore  // Prevent loading orderItems in JSON responses (use DTO instead)
     private List<OrderItem> orderItems;
 
-    @Lob
     @Basic(fetch = FetchType.LAZY)
-    @Column(name = "invoice_pdf")
+    @Column(name = "invoice_pdf", columnDefinition = "bytea")
     @JsonIgnore  // Prevent Jackson from serializing BLOB in JSON responses
     private byte[] invoicePdf;
 

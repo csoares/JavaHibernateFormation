@@ -49,9 +49,8 @@ public class Product {
     @BatchSize(size = 25)
     private List<OrderItem> orderItems;
 
-    @Lob
     @Basic(fetch = FetchType.LAZY)
-    @Column(name = "image_data")
+    @Column(name = "image_data", columnDefinition = "bytea")
     private byte[] imageData;
 
 
