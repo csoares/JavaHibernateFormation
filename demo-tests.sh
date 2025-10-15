@@ -231,30 +231,6 @@ run_tests() {
         esac
         ;;
 
-    badmain)
-        echo -e "\n${RED}═══════════════════════════════════════${NC}"
-        echo -e "${RED}BADMAIN BRANCH - Anti-Patterns Demo${NC}"
-        echo -e "${RED}═══════════════════════════════════════${NC}\n"
-
-        echo "This branch demonstrates common performance mistakes!"
-        echo "Compare these results with 'main' branch performance."
-        echo ""
-
-        echo -e "${RED}Testing anti-patterns (expect SLOW performance):${NC}"
-        echo ""
-
-        test_endpoint "❌ User query (bad practices)" \
-            "${APP_URL}/api/bad/users/1" $REPEAT_COUNT
-
-        read -p "Test batch operations (warning: may be VERY slow)? (y/n): " TEST_BATCH
-        if [ "$TEST_BATCH" = "y" ]; then
-            test_endpoint "❌ List 100 users (N+1 problem!)" \
-                "${APP_URL}/api/bad/users?page=0&size=100" 1
-
-            echo -e "${RED}⚠️  Check logs: you'll see 100+ separate SQL queries!${NC}"
-        fi
-        ;;
-
     001-n1problem)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}N+1 PROBLEM DEMO (001-n1problem)${NC}"
@@ -421,7 +397,6 @@ run_tests() {
         echo ""
         echo -e "${YELLOW}This script supports the following branches:${NC}"
         echo "  • main"
-        echo "  • badmain"
         echo "  • 001-n1problem"
         echo "  • 002-pagination"
         echo "  • 003-blob-management"
