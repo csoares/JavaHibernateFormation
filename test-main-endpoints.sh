@@ -50,8 +50,8 @@ test_endpoint() {
 
     # Make request and capture response
     response=$(curl -s -w "\n%{http_code}" "${url}" 2>&1)
-    http_code=$(echo "$response" | tail -n1)
-    body=$(echo "$response" | head -n-1)
+    http_code=$(echo "$response" | tail -n 1)
+    body=$(echo "$response" | sed '$d')
 
     # Check status code
     if [ "$http_code" == "200" ]; then
@@ -96,7 +96,7 @@ test_endpoint "Get users by department" \
     "${APP_URL}/api/users/department/2?page=0&size=5"
 
 test_endpoint "Get single order" \
-    "${APP_URL}/api/orders/599776"
+    "${APP_URL}/api/orders/180"
 
 test_endpoint "Get paginated orders" \
     "${APP_URL}/api/orders?page=0&size=10"
@@ -141,7 +141,7 @@ test_endpoint "Get performance summary" \
 echo -e "${BLUE}--- Order Endpoints (Optimized) ---${NC}\n"
 
 test_endpoint "Get order by ID (optimized with native query)" \
-    "${APP_URL}/api/good/orders/599776"
+    "${APP_URL}/api/good/orders/180"
 
 test_endpoint "Get orders by status (paginated)" \
     "${APP_URL}/api/good/orders?status=PENDING&page=0&size=10"
@@ -150,22 +150,34 @@ test_endpoint "Get order summaries by user (DTO projection)" \
     "${APP_URL}/api/good/orders/user/1/summaries"
 
 test_endpoint "Get order by number" \
-    "${APP_URL}/api/good/orders/number/ORD-0000499776"
+    "${APP_URL}/api/good/orders/number/ORD-2025-00000180"
 
 test_endpoint "Get order statistics" \
     "${APP_URL}/api/good/orders/statistics"
 
-echo -e "${BLUE}--- BLOB/PDF Endpoints (Download & Metadata) ---${NC}\n"
+echo -e "${BLUE}--- BLOB/PDF Endpoints (RESTful Design) ---${NC}\n"
 
-test_endpoint "Check if order has PDF invoice" \
-    "${APP_URL}/api/good/orders/599776/invoice/exists"
+echo -e "${CYAN}Testing: HEAD /invoice (Check existence)${NC}"
+echo -e "${BLUE}URL: ${APP_URL}/api/good/orders/180/invoice${NC}"
+http_code=$(curl -s -I -w "%{http_code}" "${APP_URL}/api/good/orders/180/invoice" -o /dev/null)
+if [ "$http_code" == "200" ]; then
+    echo -e "${GREEN}✓ SUCCESS - Invoice exists (HTTP 200)${NC}"
+elif [ "$http_code" == "404" ]; then
+    echo -e "${YELLOW}⚠ NOT FOUND - No invoice for this order${NC}"
+else
+    echo -e "${RED}✗ ERROR (HTTP $http_code)${NC}"
+fi
+echo ""
 
 test_endpoint "Get PDF invoice metadata" \
-    "${APP_URL}/api/good/orders/599776/invoice/metadata" true
+    "${APP_URL}/api/good/orders/180/invoice/metadata" true
 
-echo -e "${CYAN}Testing: Download PDF invoice${NC}"
-echo -e "${BLUE}URL: ${APP_URL}/api/good/orders/599776/invoice/download${NC}"
-response=$(curl -s -w "\n%{http_code}" "${APP_URL}/api/good/orders/599776/invoice/download" -o /tmp/test-invoice.pdf 2>&1)
+test_endpoint "Get PDF as Base64 (JSON)" \
+    "${APP_URL}/api/good/orders/180/invoice/base64" false
+
+echo -e "${CYAN}Testing: GET /invoice (Download PDF)${NC}"
+echo -e "${BLUE}URL: ${APP_URL}/api/good/orders/180/invoice${NC}"
+response=$(curl -s -w "\n%{http_code}" "${APP_URL}/api/good/orders/180/invoice" -o /tmp/test-invoice.pdf 2>&1)
 http_code=$(echo "$response" | tail -n1)
 if [ "$http_code" == "200" ]; then
     if [ -f /tmp/test-invoice.pdf ]; then
@@ -219,7 +231,7 @@ test_endpoint "Get orders by status (memory filtering)" \
     "${APP_URL}/api/bad/orders/status/PENDING"
 
 test_endpoint "Get order by number (loads all!)" \
-    "${APP_URL}/api/bad/orders/number/ORD-0000499776"
+    "${APP_URL}/api/bad/orders/number/ORD-2025-00000180"
 
 # ===========================================
 # DATA & STATISTICS ENDPOINTS
@@ -253,11 +265,11 @@ time curl -s "${APP_URL}/api/good/users?page=0&size=20" > /dev/null
 echo ""
 
 echo -e "${RED}❌ BAD: Get order with nested N+1${NC}"
-time curl -s "${APP_URL}/api/bad/orders/599776" > /dev/null
+time curl -s "${APP_URL}/api/bad/orders/180" > /dev/null
 echo ""
 
 echo -e "${GREEN}✅ GOOD: Get order with optimized query${NC}"
-time curl -s "${APP_URL}/api/good/orders/599776" > /dev/null
+time curl -s "${APP_URL}/api/good/orders/180" > /dev/null
 echo ""
 
 # ===========================================

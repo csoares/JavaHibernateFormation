@@ -85,7 +85,8 @@ public class Order {
         CONFIRMED,
         SHIPPED,
         DELIVERED,
-        CANCELLED
+        CANCELLED,
+        COMPLETED
     }
 
 

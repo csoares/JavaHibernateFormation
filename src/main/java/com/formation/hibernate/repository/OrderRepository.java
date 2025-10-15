@@ -37,6 +37,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            nativeQuery = true)
     Optional<Object[]> findOrderWithoutBlobOrRelationsNative(@Param("id") Long id);
 
+    // ❌ BAD: Find ALL orders without BLOB (still bad - no pagination!)
+    // Returns all orders excluding invoice_pdf to avoid BYTEA errors
+    // Result: Still loads ALL data into memory (OutOfMemoryError risk)
+    @Query(value = "SELECT o.id, o.order_number, o.order_date, o.total_amount, o.status, o.user_id " +
+                   "FROM orders o",
+           nativeQuery = true)
+    List<Object[]> findAllOrdersWithoutBlob();
+
     // ✅ GOOD: Native query with explicit JOINs and NO BLOB
     // Returns Order entity with user and department loaded in single query
     // IMPORTANT: Still loads invoice_pdf due to Hibernate 6 limitations
@@ -86,9 +94,23 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Object[]> getOrderStatistics();
 
 
-    Page<Order> findByUserId(Long userId, Pageable pageable);
+    // Basic methods that load full Order entity (may have BLOB loading issues)
+    // Recommended to use DTO projections or native queries instead
+    // Page<Order> findByUserId(Long userId, Pageable pageable);
+    // Page<Order> findByStatus(String status, Pageable pageable);
 
-    Page<Order> findByStatus(String status, Pageable pageable);
+    // Alternative: Use JPQL with DTO projection to avoid BLOB loading
+    @Query("SELECT new com.formation.hibernate.dto.OrderDto(o.id, o.orderNumber, o.orderDate, o.totalAmount, o.status) " +
+           "FROM Order o")
+    Page<com.formation.hibernate.dto.OrderDto> findAllOrderDtos(Pageable pageable);
+
+    @Query("SELECT new com.formation.hibernate.dto.OrderDto(o.id, o.orderNumber, o.orderDate, o.totalAmount, o.status) " +
+           "FROM Order o WHERE o.user.id = :userId")
+    Page<com.formation.hibernate.dto.OrderDto> findOrderDtosByUserId(@Param("userId") Long userId, Pageable pageable);
+
+    @Query("SELECT new com.formation.hibernate.dto.OrderDto(o.id, o.orderNumber, o.orderDate, o.totalAmount, o.status) " +
+           "FROM Order o WHERE o.status = :status")
+    Page<com.formation.hibernate.dto.OrderDto> findOrderDtosByStatus(@Param("status") Order.OrderStatus status, Pageable pageable);
 
 
     // Pedidos por departamento (útil para relatórios departamentais)
@@ -111,6 +133,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     // Note: Must use native query to avoid Hibernate type mapping issues
     @Query(value = "SELECT invoice_pdf FROM orders WHERE id = :id", nativeQuery = true)
     byte[] findInvoicePdfById(@Param("id") Long id);
+
+    // ✅ Find order by ID WITHOUT loading BLOB
+    // Note: Explicitly excludes invoice_pdf column to avoid PostgreSQL BYTEA error
+    @Query(value = "SELECT o.id, o.order_number, o.order_date, o.total_amount, o.status, o.user_id " +
+                   "FROM orders o WHERE o.id = :id",
+           nativeQuery = true)
+    Optional<Object[]> findByIdWithoutBlob(@Param("id") Long id);
 
     // ✅ BOA PRÁTICA: Obter informações do pedido SEM carregar o BLOB
     // Note: Using native query because JPQL LENGTH() doesn't work with byte[]

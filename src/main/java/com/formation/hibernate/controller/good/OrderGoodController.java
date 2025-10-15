@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -319,14 +320,15 @@ public class OrderGoodController {
      * 🎓 ENDPOINT DOWNLOAD PDF - Demonstração de Como Carregar BLOB Corretamente
      */
 
-    // ✅ BOA PRÁTICA: Carregar BLOB APENAS quando explicitamente necessário
-    // VANTAGEM: Endpoint dedicado para download - não afeta outros endpoints
-    // VANTAGEM: Retorna byte[] diretamente com headers HTTP corretos
-    // IMPORTANTE: Este é o ÚNICO endpoint que carrega o BLOB
-    @GetMapping("/{id}/invoice/download")
+    // ✅ BOA PRÁTICA: Endpoint RESTful para download de PDF
+    // VANTAGEM: URL limpa sem verbos (/invoice em vez de /invoice/download)
+    // VANTAGEM: Headers HTTP corretos (Content-Type, Content-Disposition)
+    // VANTAGEM: Endpoint dedicado - não afeta outras queries
+    // IMPORTANTE: Este é o ÚNICO endpoint que carrega o BLOB completo
+    @GetMapping("/{id}/invoice")
     @Transactional(readOnly = true)
-    public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id) {
-        String operationId = "downloadInvoicePdf-" + id;
+    public ResponseEntity<byte[]> getInvoicePdf(@PathVariable Long id) {
+        String operationId = "getInvoicePdf-" + id;
 
         return performanceMonitor.measure(operationId,
             "Download de PDF do pedido (carregamento EXPLÍCITO de BLOB)",
@@ -368,25 +370,27 @@ public class OrderGoodController {
             });
     }
 
-    // ✅ BOA PRÁTICA: Verificar se PDF existe SEM carregar o BLOB
-    // VANTAGEM: Consulta leve que retorna apenas boolean
-    // VANTAGEM: Cliente pode verificar antes de fazer download
-    @GetMapping("/{id}/invoice/exists")
+    // ✅ BOA PRÁTICA: Verificar existência de PDF com método HEAD
+    // VANTAGEM: Usa método HTTP HEAD para verificação de recurso
+    // VANTAGEM: Retorna HTTP 200 se existe, 404 se não existe
+    // VANTAGEM: Sem corpo na resposta (apenas headers)
+    // PADRÃO REST: HEAD /{id}/invoice para verificar se recurso existe
+    @RequestMapping(value = "/{id}/invoice", method = RequestMethod.HEAD)
     @Transactional(readOnly = true)
-    public ResponseEntity<Boolean> checkInvoiceExists(@PathVariable Long id) {
-        String operationId = "checkInvoiceExists-" + id;
+    public ResponseEntity<Void> checkInvoiceExists(@PathVariable Long id) {
+        String operationId = "headInvoice-" + id;
 
         return performanceMonitor.measure(operationId,
-            "Verificar existência de PDF sem carregar dados",
+            "Verificar existência de PDF (HTTP HEAD)",
             () -> {
                 // ✅ BOA PRÁTICA: Usa query customizada que retorna apenas boolean
                 // VANTAGEM: NÃO carrega o BLOB (apenas verifica IS NOT NULL)
                 // RESULTADO: Query extremamente rápida e leve
                 boolean exists = orderRepository.orderHasPdf(id);
 
-                logger.info("✅ Verificação de PDF para pedido {}: {}", id, exists);
+                logger.info("✅ HEAD /invoice para pedido {}: {}", id, exists ? "200 OK" : "404 Not Found");
 
-                return ResponseEntity.ok(exists);
+                return exists ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
             });
     }
 

@@ -151,12 +151,10 @@ public class OrderBadController {
                 // RESULTADO: Multiplica exponencialmente o uso de memória
                 List<OrderDto> orderDtos = orderConverter.toDtoList(orders);
 
-                long totalBlobSize = orders.stream()
-                    .mapToLong(o -> o.getInvoicePdf() != null ? o.getInvoicePdf().length : 0)
-                    .sum();
-
-                logger.error("🚨 EXTREMAMENTE PERIGOSO! Carregados {} pedidos com {} bytes de PDFs! OutOfMemoryError iminente!",
-                    orders.size(), totalBlobSize);
+                // Note: Not accessing invoicePdf to avoid triggering BLOB loading
+                // (even bad examples need to run without crashing)
+                logger.error("🚨 EXTREMAMENTE PERIGOSO! Carregados {} pedidos! OutOfMemoryError iminente!",
+                    orders.size());
 
                 return ResponseEntity.ok(orderDtos);
             });
@@ -174,19 +172,33 @@ public class OrderBadController {
             "Buscar pedidos por status SEM otimização (carrega tudo + filtra)",
             () -> {
                 // ❌ MÁ PRÁTICA: Carrega todos e filtra em memória
-                // PROBLEMA: findAll() traz 100% dos dados (incluindo PDFs pesados)
+                // PROBLEMA: Loads all order data (without BLOBs to avoid crash)
                 // PROBLEMA: .filter() processa em memória o que deveria ser WHERE na BD
                 // PROBLEMA: Desperdiça 90%+ dos dados carregados
                 // RESULTADO: Lentidão extrema + risco de OutOfMemoryError
-                List<Order> allOrders = orderRepository.findAll();
-                List<Order> filteredOrders = allOrders.stream()
-                    .filter(order -> order.getStatus() == status)
+                List<Object[]> allOrdersData = orderRepository.findAllOrdersWithoutBlob();
+                List<Object[]> filteredOrdersData = allOrdersData.stream()
+                    .filter(row -> {
+                        String statusStr = (String) row[4];
+                        return status.name().equals(statusStr);
+                    })
                     .toList();
 
-                List<OrderDto> orderDtos = orderConverter.toDtoList(filteredOrders);
+                // Map to DTOs manually
+                List<OrderDto> orderDtos = filteredOrdersData.stream()
+                    .map(row -> {
+                        return new OrderDto(
+                            ((Number) row[0]).longValue(),
+                            (String) row[1],
+                            ((java.sql.Timestamp) row[2]).toLocalDateTime(),
+                            (java.math.BigDecimal) row[3],
+                            Order.OrderStatus.valueOf((String) row[4])
+                        );
+                    })
+                    .toList();
 
                 logger.error("🚨 PÉSSIMA PRÁTICA! Carregados {} pedidos total para filtrar {} com status {}",
-                    allOrders.size(), filteredOrders.size(), status);
+                    allOrdersData.size(), filteredOrdersData.size(), status);
 
                 return ResponseEntity.ok(orderDtos);
             });
@@ -203,24 +215,34 @@ public class OrderBadController {
         return performanceMonitor.measure(operationId,
             "Buscar pedido por número SEM otimização",
             () -> {
-                // ❌ MÁ PRÁTICA: Carrega todos incluindo BLOBs para encontrar um
-                // PROBLEMA: findAll() carrega milhares de pedidos + PDFs pesados
+                // ❌ MÁ PRÁTICA: Carrega todos para encontrar um
+                // PROBLEMA: Loads all order data (without BLOBs to avoid crash)
                 // PROBLEMA: .filter() faz busca linear em memória (lento)
                 // PROBLEMA: Deveria usar WHERE orderNumber = ? com índice
                 // RESULTADO: Desperdício massivo para encontrar 1 registo
-                List<Order> allOrders = orderRepository.findAll();
-                Optional<Order> order = allOrders.stream()
-                    .filter(o -> orderNumber.equals(o.getOrderNumber()))
+                List<Object[]> allOrdersData = orderRepository.findAllOrdersWithoutBlob();
+                Optional<Object[]> orderData = allOrdersData.stream()
+                    .filter(row -> {
+                        String num = (String) row[1];
+                        return orderNumber.equals(num);
+                    })
                     .findFirst();
 
-                if (order.isPresent()) {
-                    OrderDto dto = orderConverter.toDto(order.get());
-                    logger.error("🚨 PÉSSIMA PRÁTICA! Carregados {} pedidos (incluindo PDFs) para encontrar 1!",
-                        allOrders.size());
+                if (orderData.isPresent()) {
+                    Object[] row = orderData.get();
+                    OrderDto dto = new OrderDto(
+                        ((Number) row[0]).longValue(),
+                        (String) row[1],
+                        ((java.sql.Timestamp) row[2]).toLocalDateTime(),
+                        (java.math.BigDecimal) row[3],
+                        Order.OrderStatus.valueOf((String) row[4])
+                    );
+                    logger.error("🚨 PÉSSIMA PRÁTICA! Carregados {} pedidos para encontrar 1!",
+                        allOrdersData.size());
                     return ResponseEntity.ok(dto);
                 } else {
                     logger.warn("⚠️ Pedido não encontrado: {} (após carregar {} registros)",
-                        orderNumber, allOrders.size());
+                        orderNumber, allOrdersData.size());
                     return ResponseEntity.notFound().build();
                 }
             });
@@ -288,12 +310,10 @@ public class OrderBadController {
 
                 List<OrderDto> orderDtos = orderConverter.toDtoList(highValueOrders);
 
-                long totalBlobSize = allOrders.stream()
-                    .mapToLong(o -> o.getInvoicePdf() != null ? o.getInvoicePdf().length : 0)
-                    .sum();
-
-                logger.error("🚨 PÉSSIMA PRÁTICA! Carregados {} MB de PDFs desnecessariamente para encontrar {} pedidos!",
-                    totalBlobSize / (1024 * 1024), highValueOrders.size());
+                // Note: Not accessing invoicePdf to avoid triggering BLOB loading
+                // (even bad examples need to run without crashing)
+                logger.error("🚨 PÉSSIMA PRÁTICA! Carregados {} pedidos desnecessariamente para encontrar {} pedidos!",
+                    allOrders.size(), highValueOrders.size());
 
                 return ResponseEntity.ok(orderDtos);
             });

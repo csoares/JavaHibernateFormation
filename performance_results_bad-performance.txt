@@ -1,6 +1,0 @@
-Performance Test Results - bad-performance Profile
-Date: Mon Sep 29 01:01:24 WEST 2025
-Warmup requests: 5
-Test requests per endpoint: 20
-=======================================
-
