@@ -61,30 +61,47 @@ public class BlobManagementController {
         String operationId = "blob-problem-all";
 
         return performanceMonitor.measure(operationId,
-            "❌ Buscar TODOS os orders COM BLOBs (EXTREMAMENTE PERIGOSO!)",
+            "❌ Demonstração: Por que NÃO carregar BLOBs desnecessariamente",
             () -> {
-                // ❌ PROBLEMA: findAll() carrega TUDO incluindo PDFs pesados
-                List<Order> orders = orderRepository.findAll();
-                
-                // Calcular tamanho total dos BLOBs carregados
-                long totalBlobSize = orders.stream()
-                    .filter(o -> o.getInvoicePdf() != null)
-                    .mapToLong(o -> o.getInvoicePdf().length)
-                    .sum();
-                
-                logger.error("❌ PERIGO EXTREMO: Carregados {} orders com {}MB de PDFs na memória!",
-                    orders.size(), totalBlobSize / (1024 * 1024));
-                
+                // ⚠️ DEMONSTRAÇÃO: O problema de carregar BLOBs
+                // Não vamos realmente carregar para não crashar, mas vamos simular o impacto
+
+                // Contar orders com PDFs SEM carregar os BLOBs
+                List<Object[]> metadata = orderRepository.findOrdersWithBlobMetadata();
+
+                int ordersWithPdf = 0;
+                long estimatedSize = 0;
+
+                for (Object[] row : metadata) {
+                    Boolean hasPdf = (Boolean) row[3];
+                    if (hasPdf) {
+                        ordersWithPdf++;
+                        // Estimar 500KB por PDF (conservador)
+                        estimatedSize += 500 * 1024;
+                    }
+                }
+
+                logger.warn("❌ PROBLEMA DEMONSTRADO: {} orders têm PDFs (~{} MB total)",
+                    ordersWithPdf, estimatedSize / (1024 * 1024));
+
                 String result = String.format(
-                    "🚨 CARREGADOS %d ORDERS COM %d MB DE PDFS!\n" +
-                    "💀 Risco de OutOfMemoryError: MÁXIMO\n" +
-                    "⏱️ Performance: TERRÍVEL\n" +
-                    "🌐 Bandwidth desperdiçado: %d MB",
-                    orders.size(),
-                    totalBlobSize / (1024 * 1024),
-                    totalBlobSize / (1024 * 1024)
+                    "🚨 DEMONSTRAÇÃO DO PROBLEMA:\n" +
+                    "  • Total de orders: %d\n" +
+                    "  • Orders com PDF: %d\n" +
+                    "  • Tamanho estimado: ~%d MB\n\n" +
+                    "  💀 SE carregássemos TODOS os PDFs:\n" +
+                    "     - Memória: ~%d MB consumidos!\n" +
+                    "     - Tempo: Vários segundos de espera\n" +
+                    "     - Bandwidth: Transferência desnecessária\n" +
+                    "     - Risco: OutOfMemoryError com muitos orders!\n\n" +
+                    "  ✅ SOLUÇÃO: Use endpoint /good/all-without-blobs\n" +
+                    "     Carrega só metadados (KB em vez de MB!)",
+                    metadata.size(),
+                    ordersWithPdf,
+                    estimatedSize / (1024 * 1024),
+                    estimatedSize / (1024 * 1024)
                 );
-                
+
                 return ResponseEntity.ok(result);
             });
     }
