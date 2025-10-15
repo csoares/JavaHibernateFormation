@@ -3,12 +3,13 @@
 # ===========================================
 # Hibernate Performance Demo Testing Script
 # ===========================================
-# This script tests performance across all branches
+# This script automatically detects your current branch
+# and runs the appropriate performance tests
 #
 # USAGE:
-#   1. Start your application: mvn spring-boot:run -Dspring-boot.run.profiles=docker
-#   2. In another terminal: ./demo-tests.sh
-#   3. Select your branch-specific tests
+#   1. Checkout the branch you want to test: git checkout <branch-name>
+#   2. Start your application: mvn spring-boot:run -Dspring-boot.run.profiles=docker
+#   3. In another terminal: ./demo-tests.sh
 #
 # Make sure database is loaded with test data first!
 # ===========================================
@@ -27,9 +28,13 @@ NC='\033[0m' # No Color
 APP_URL="http://localhost:8080"
 REPEAT_COUNT=3
 
+# Detect current branch
+CURRENT_BRANCH=$(git branch --show-current)
+
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Hibernate Performance Demo Tests${NC}"
 echo -e "${GREEN}========================================${NC}\n"
+echo -e "${BLUE}Current branch: ${YELLOW}${CURRENT_BRANCH}${NC}\n"
 
 # Check if application is running
 echo -e "${BLUE}Checking if application is running...${NC}"
@@ -133,24 +138,10 @@ compare_endpoints() {
     echo ""
 }
 
-# Main loop - allows returning to menu
-while true; do
-    # Show branch menu
-    echo -e "${CYAN}========================================${NC}"
-    echo -e "${CYAN}SELECT YOUR CURRENT BRANCH:${NC}"
-    echo -e "${CYAN}========================================${NC}"
-    echo ""
-    echo "  1) main          - Full-featured best practices demo"
-    echo "  2) badmain       - Anti-patterns demonstration"
-    echo "  3) 001-n1problem - N+1 query problem demo"
-    echo "  4) 002-pagination - Pagination strategies demo"
-    echo "  5) 003-blob-management - BLOB loading demo"
-    echo "  6) Exit"
-    echo ""
-    read -p "Enter choice [1-6]: " BRANCH_CHOICE
-
-    case $BRANCH_CHOICE in
-    1)
+# Main logic - auto-detect branch and run appropriate tests
+run_tests() {
+    case $CURRENT_BRANCH in
+    main)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}MAIN BRANCH - Best Practices Demo${NC}"
         echo -e "${GREEN}═══════════════════════════════════════${NC}\n"
@@ -240,7 +231,7 @@ while true; do
         esac
         ;;
 
-    2)
+    badmain)
         echo -e "\n${RED}═══════════════════════════════════════${NC}"
         echo -e "${RED}BADMAIN BRANCH - Anti-Patterns Demo${NC}"
         echo -e "${RED}═══════════════════════════════════════${NC}\n"
@@ -264,7 +255,7 @@ while true; do
         fi
         ;;
 
-    3)
+    001-n1problem)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}N+1 PROBLEM DEMO (001-n1problem)${NC}"
         echo -e "${GREEN}═══════════════════════════════════════${NC}\n"
@@ -305,7 +296,7 @@ while true; do
         fi
         ;;
 
-    4)
+    002-pagination)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}PAGINATION DEMO (002-pagination)${NC}"
         echo -e "${GREEN}═══════════════════════════════════════${NC}\n"
@@ -346,85 +337,129 @@ while true; do
         fi
         ;;
 
-    5)
+    003-blob-management)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}BLOB MANAGEMENT DEMO (003-blob-management)${NC}"
         echo -e "${GREEN}═══════════════════════════════════════${NC}\n"
 
         echo "This branch demonstrates BLOB (Binary Large Object) handling:"
-        echo "  ❌ BAD: Eagerly loads all images/PDFs (massive waste)"
-        echo "  ✅ GOOD: Lazy loading, only fetches when needed"
+        echo "  ❌ BAD: Loads all PDFs with orders (massive waste)"
+        echo "  ✅ GOOD: Only metadata, lazy loading, separate endpoints"
         echo ""
 
-        echo -e "${YELLOW}Products have 1MB images attached${NC}"
+        echo -e "${YELLOW}Select test scenario:${NC}"
+        echo "  1) Problem vs Solution (All orders with/without BLOBs)"
+        echo "  2) Check if order has PDF (without loading it)"
+        echo "  3) Download single PDF (on-demand)"
+        echo "  4) List orders with BLOB metadata"
+        echo "  5) Batch processing comparison"
         echo ""
+        read -p "Enter choice [1-5]: " BLOB_CHOICE
 
-        read -p "Test GOOD version first (safe, fast)? (y/n): " TEST_GOOD_FIRST
-        if [ "$TEST_GOOD_FIRST" = "y" ]; then
-            test_endpoint "✅ GOOD: 100 products WITHOUT images" \
-                "${APP_URL}/api/blob/good/products?limit=100" $REPEAT_COUNT
-
-            echo -e "${GREEN}Only metadata loaded, no BLOB data transferred${NC}"
-            echo ""
-        fi
-
-        read -p "Test BAD version (WARNING: loads 100MB!)? (y/n): " TEST_BAD
-        if [ "$TEST_BAD" = "y" ]; then
-            echo -e "${RED}⚠️  WARNING: This will transfer ~100MB of data!${NC}"
-            read -p "Are you sure? (yes/no): " CONFIRM
-
-            if [ "$CONFIRM" = "yes" ]; then
-                test_endpoint "❌ BAD: 100 products WITH images (100MB!)" \
-                    "${APP_URL}/api/blob/bad/products?limit=100" 1
-
+        case $BLOB_CHOICE in
+            1)
+                echo -e "\n${CYAN}══ Problem vs Solution ══${NC}"
+                echo -e "${RED}WARNING: BAD endpoint may load large BLOBs!${NC}"
                 echo ""
-                echo -e "${RED}BAD version: ~100MB transferred (1MB × 100 products)${NC}"
-                echo -e "${GREEN}GOOD version: ~10KB transferred (only metadata)${NC}"
-                echo -e "${YELLOW}Difference: 10,000x more data in BAD version!${NC}"
-            fi
-        fi
-        ;;
+                compare_endpoints \
+                    "❌ BAD: Load orders WITH PDF BLOBs (slow!)" \
+                    "${APP_URL}/api/blob-demo/bad/all-with-blobs" \
+                    "✅ GOOD: Load orders WITHOUT BLOBs (fast!)" \
+                    "${APP_URL}/api/blob-demo/good/all-without-blobs"
+                ;;
 
-    6)
-        echo ""
-        echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-        echo -e "${GREEN}Thanks for using the Hibernate Performance Demo!${NC}"
-        echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-        echo ""
-        echo -e "${CYAN}Tips for deeper analysis:${NC}"
-        echo ""
-        echo -e "${YELLOW}📊 View SQL logs:${NC}"
-        echo "   tail -f spring-boot.log | grep 'org.hibernate.SQL'"
-        echo ""
-        echo -e "${YELLOW}📈 Monitor database performance:${NC}"
-        echo "   docker exec -it hibernate-postgres psql -U hibernate_user -d hibernate_formation"
-        echo ""
-        echo -e "${YELLOW}💾 Check memory usage:${NC}"
-        echo "   docker stats hibernate-postgres"
-        echo ""
-        echo -e "${YELLOW}🔍 View Hibernate statistics:${NC}"
-        echo "   Check application logs for Session Metrics"
-        echo ""
-        echo -e "${CYAN}Next steps:${NC}"
-        echo "  • Switch branches to compare different implementations"
-        echo "  • Monitor SQL queries in logs while running tests"
-        echo "  • Try different configuration profiles (good-performance vs bad-performance)"
-        echo ""
-        exit 0
+            2)
+                echo -e "\n${CYAN}══ Check PDF Existence ══${NC}"
+                echo "This checks if order has PDF WITHOUT loading the BLOB"
+                echo ""
+                test_endpoint "Check if order #1 has PDF" \
+                    "${APP_URL}/api/blob-demo/order/1/has-pdf" $REPEAT_COUNT
+
+                echo -e "${GREEN}✓ Only metadata checked, no BLOB loaded!${NC}"
+                ;;
+
+            3)
+                echo -e "\n${CYAN}══ Download PDF On-Demand ══${NC}"
+                echo "Downloads only when user explicitly requests it"
+                echo ""
+                read -p "Download PDF for order ID (e.g., 1)? " ORDER_ID
+                if [ -n "$ORDER_ID" ]; then
+                    echo "Downloading PDF for order #${ORDER_ID}..."
+                    curl -s -o "/tmp/order_${ORDER_ID}.pdf" "${APP_URL}/api/blob-demo/order/${ORDER_ID}/pdf"
+                    FILE_SIZE=$(ls -lh "/tmp/order_${ORDER_ID}.pdf" | awk '{print $5}')
+                    echo -e "${GREEN}✓ PDF downloaded: /tmp/order_${ORDER_ID}.pdf (${FILE_SIZE})${NC}"
+                fi
+                ;;
+
+            4)
+                echo -e "\n${CYAN}══ List with Metadata ══${NC}"
+                echo "Shows orders with 'has PDF' indicator without loading BLOBs"
+                echo ""
+                test_endpoint "List orders with BLOB metadata" \
+                    "${APP_URL}/api/blob-demo/list-efficient" $REPEAT_COUNT
+
+                echo -e "${GREEN}✓ Only metadata loaded, perfect for UI lists!${NC}"
+                ;;
+
+            5)
+                echo -e "\n${CYAN}══ Batch Processing ══${NC}"
+                echo "Compares processing many orders with/without BLOBs"
+                echo ""
+                test_endpoint "Batch process orders" \
+                    "${APP_URL}/api/blob-demo/batch-process" 1
+
+                echo -e "${YELLOW}Check response for detailed performance breakdown!${NC}"
+                ;;
+        esac
         ;;
 
     *)
-        echo -e "${RED}Invalid choice. Please enter 1-6.${NC}"
         echo ""
-        continue
+        echo -e "${RED}════════════════════════════════════════════════════════${NC}"
+        echo -e "${RED}ERROR: Unknown branch '${CURRENT_BRANCH}'${NC}"
+        echo -e "${RED}════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${YELLOW}This script supports the following branches:${NC}"
+        echo "  • main"
+        echo "  • badmain"
+        echo "  • 001-n1problem"
+        echo "  • 002-pagination"
+        echo "  • 003-blob-management"
+        echo ""
+        echo -e "${CYAN}To test a different branch:${NC}"
+        echo "  1. git checkout <branch-name>"
+        echo "  2. ./demo-tests.sh"
+        echo ""
+        exit 1
         ;;
     esac
+}
 
-    echo ""
-    echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}Test completed!${NC}"
-    echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-    echo ""
-    read -p "Press Enter to return to main menu..."
-    echo ""
-done
+# Run tests for current branch
+run_tests
+
+# Show completion message
+echo ""
+echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}Test completed!${NC}"
+echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${CYAN}Tips for deeper analysis:${NC}"
+echo ""
+echo -e "${YELLOW}📊 View SQL logs:${NC}"
+echo "   tail -f spring-boot.log | grep 'org.hibernate.SQL'"
+echo ""
+echo -e "${YELLOW}📈 Monitor database performance:${NC}"
+echo "   docker exec -it hibernate-postgres psql -U hibernate_user -d hibernate_formation"
+echo ""
+echo -e "${YELLOW}💾 Check memory usage:${NC}"
+echo "   docker stats hibernate-postgres"
+echo ""
+echo -e "${YELLOW}🔍 View Hibernate statistics:${NC}"
+echo "   Check application logs for Session Metrics"
+echo ""
+echo -e "${CYAN}Next steps:${NC}"
+echo "  • Switch branches to compare different implementations: git checkout <branch>"
+echo "  • Monitor SQL queries in logs while running tests"
+echo "  • Run this script again on a different branch"
+echo ""

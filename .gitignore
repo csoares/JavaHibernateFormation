@@ -82,3 +82,5 @@ postgres_data/
 # Application specific
 logs/
 temp/
+results.md
+result_*.tmp

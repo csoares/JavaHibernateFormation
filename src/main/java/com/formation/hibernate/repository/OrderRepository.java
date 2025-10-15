@@ -67,7 +67,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("SELECT o.id, o.orderNumber, o.orderDate, o.totalAmount, o.status FROM Order o WHERE o.totalAmount > :minAmount")
     List<Object[]> findOrdersWithoutBlobData(@Param("minAmount") BigDecimal minAmount);
 
+    // ✅ BOA PRÁTICA: Verificar existência de PDF sem carregar o BLOB
+    // Retorna apenas boolean indicando se o PDF existe
+    // Muito mais rápido que carregar o Order completo só para verificar
+    @Query("SELECT CASE WHEN o.invoicePdf IS NOT NULL THEN true ELSE false END FROM Order o WHERE o.id = :id")
+    boolean orderHasPdf(@Param("id") Long id);
 
+    // ✅ BOA PRÁTICA: Listar orders com metadata de BLOB sem carregar os dados
+    // Retorna: id, orderNumber, totalAmount, hasPdf (boolean)
+    // Permite UI mostrar ícone de PDF sem carregar megabytes de dados
+    @Query("SELECT o.id, o.orderNumber, o.totalAmount, " +
+           "CASE WHEN o.invoicePdf IS NOT NULL THEN true ELSE false END " +
+           "FROM Order o")
+    List<Object[]> findOrdersWithBlobMetadata();
 
     @Query("SELECT o FROM Order o WHERE o.orderDate BETWEEN :startDate AND :endDate ORDER BY o.orderDate DESC")
     List<Order> findOrdersByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
