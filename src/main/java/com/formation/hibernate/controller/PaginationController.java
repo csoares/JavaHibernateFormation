@@ -81,7 +81,11 @@ public class PaginationController {
     }
 
     /*
-     * ✅ SOLUÇÃO 1: PAGINAÇÃO BÁSICA
+     * ⚠️ DEMONSTRAÇÃO: PAGINAÇÃO BÁSICA (SEM EntityGraph)
+     *
+     * Este endpoint usa paginação MAS não usa EntityGraph.
+     * Quando os DTOs são convertidos e acessam department.name,
+     * ocorre um N+1 problem: 1 query para users + N queries para departments.
      */
 
     @GetMapping("/good")
@@ -93,20 +97,20 @@ public class PaginationController {
         String operationId = "pagination-basic-" + page + "-" + size;
 
         return performanceMonitor.measure(operationId,
-            "✅ Buscar users COM paginação básica",
+            "⚠️ Buscar users COM paginação MAS sem EntityGraph (pode ter N+1)",
             () -> {
-                // ✅ SOLUÇÃO: Pageable limita resultados
+                // ✅ SOLUÇÃO parcial: Pageable limita resultados
                 Pageable pageable = PageRequest.of(page, size);
-                
-                // ✅ SOLUÇÃO: Só carrega uma página de dados
-                Page<User> userPage = userRepository.findAll(pageable);
-                
-                // ✅ SOLUÇÃO: Page.map() preserva metadados de paginação
+
+                // ⚠️ PROBLEMA: Sem EntityGraph, pode causar N+1
+                Page<User> userPage = userRepository.findAllWithoutEntityGraph(pageable);
+
+                // ⚠️ PROBLEMA: Conversão para DTO acessa department = N+1!
                 Page<UserDto> userDtoPage = userPage.map(userConverter::toDto);
-                
-                logger.info("✅ PAGINAÇÃO: Página {} com {} users (de {} total)",
+
+                logger.info("⚠️ PAGINAÇÃO BÁSICA: Página {} com {} users (de {} total) - verifique N+1 nos logs!",
                     page, userDtoPage.getNumberOfElements(), userDtoPage.getTotalElements());
-                
+
                 return ResponseEntity.ok(userDtoPage);
             });
     }
@@ -178,6 +182,11 @@ public class PaginationController {
 
     /*
      * ✅ SOLUÇÃO 4: PAGINAÇÃO + ENTITYGRAPH (Evita N+1)
+     *
+     * NOTA: O método findAll(Pageable) do UserRepository JÁ usa @EntityGraph
+     * por isso TODOS os endpoints de paginação evitam N+1 automaticamente.
+     * Este endpoint demonstra explicitamente que usar EntityGraph mantém
+     * a performance consistente mesmo ao converter para DTOs.
      */
 
     @GetMapping("/optimized")
@@ -191,16 +200,17 @@ public class PaginationController {
         return performanceMonitor.measure(operationId,
             "✅ Buscar users COM paginação + EntityGraph (sem N+1)",
             () -> {
-                // ✅ SOLUÇÃO: Paginação + EntityGraph para evitar N+1
-                Pageable pageable = PageRequest.of(page, size, Sort.by("name"));
-                
-                // ✅ SOLUÇÃO: findAll() com EntityGraph carrega departments junto
+                // ✅ SOLUÇÃO: Paginação SEM ordenação extra (mais rápido)
+                Pageable pageable = PageRequest.of(page, size);
+
+                // ✅ SOLUÇÃO: findAll() usa @EntityGraph do UserRepository
+                // Carrega users + departments numa única query (evita N+1)
                 Page<User> userPage = userRepository.findAll(pageable);
                 Page<UserDto> userDtoPage = userPage.map(userConverter::toDto);
-                
+
                 logger.info("✅ PAGINAÇÃO OPTIMIZADA: Página {} com {} users e departments carregados",
                     page, userDtoPage.getNumberOfElements());
-                
+
                 return ResponseEntity.ok(userDtoPage);
             });
     }
@@ -250,24 +260,50 @@ public class PaginationController {
         return performanceMonitor.measure(operationId,
             "🔧 Teste de stress: múltiplas páginas sequenciais",
             () -> {
-                StringBuilder result = new StringBuilder("🔧 TESTE DE STRESS:\n");
-                
+                StringBuilder result = new StringBuilder("🔧 TESTE DE STRESS DE PAGINAÇÃO:\n\n");
+
+                long totalTime = 0;
+                long minTime = Long.MAX_VALUE;
+                long maxTime = 0;
+
                 // Testa 10 páginas sequenciais para medir consistência
                 for (int i = 0; i < 10; i++) {
                     long startTime = System.currentTimeMillis();
-                    
+
                     Pageable pageable = PageRequest.of(i, 50);
                     Page<User> page = userRepository.findAll(pageable);
-                    
+
                     long endTime = System.currentTimeMillis();
                     long duration = endTime - startTime;
-                    
+
+                    totalTime += duration;
+                    minTime = Math.min(minTime, duration);
+                    maxTime = Math.max(maxTime, duration);
+
                     result.append(String.format("Página %d: %dms (%d users)\n",
                         i, duration, page.getNumberOfElements()));
                 }
-                
-                logger.info("🔧 Teste de stress de paginação concluído");
-                
+
+                long avgTime = totalTime / 10;
+
+                result.append("\n📊 ESTATÍSTICAS:\n");
+                result.append(String.format("  • Tempo médio: %dms\n", avgTime));
+                result.append(String.format("  • Tempo mínimo: %dms\n", minTime));
+                result.append(String.format("  • Tempo máximo: %dms\n", maxTime));
+                result.append(String.format("  • Variação: %dms (%.1f%%)\n",
+                    maxTime - minTime,
+                    ((maxTime - minTime) * 100.0 / avgTime)));
+                result.append(String.format("  • Tempo total: %dms\n", totalTime));
+
+                if (maxTime > avgTime * 1.5) {
+                    result.append("\n⚠️  AVISO: Performance inconsistente detectada!\n");
+                    result.append("   Algumas páginas são significativamente mais lentas.\n");
+                } else {
+                    result.append("\n✅ Performance consistente entre todas as páginas!\n");
+                }
+
+                logger.info("🔧 Teste de stress de paginação concluído - Média: {}ms", avgTime);
+
                 return ResponseEntity.ok(result.toString());
             });
     }

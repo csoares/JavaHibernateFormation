@@ -68,6 +68,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @EntityGraph(value = "User.withDepartment", type = EntityGraph.EntityGraphType.FETCH)
     Page<User> findAll(Pageable pageable);
 
+    // 🎓 PARA DEMONSTRAÇÃO: Paginação SEM EntityGraph (para comparação)
+    // Este método mostra o que acontece quando NÃO otimizamos
+    // Vai causar N+1 problem ao acessar departments
+    @Query("SELECT u FROM User u")
+    Page<User> findAllWithoutEntityGraph(Pageable pageable);
+
     // ✅ BOA PRÁTICA: Consulta customizada com JOIN FETCH
     // Para casos específicos onde Query Method não é suficiente
     // JOIN FETCH garante que department vem na mesma query

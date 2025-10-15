@@ -3,12 +3,13 @@
 # ===========================================
 # Hibernate Performance Demo Testing Script
 # ===========================================
-# This script tests performance across all branches
+# This script automatically detects your current branch
+# and runs the appropriate performance tests
 #
 # USAGE:
-#   1. Start your application: mvn spring-boot:run -Dspring-boot.run.profiles=docker
-#   2. In another terminal: ./demo-tests.sh
-#   3. Select your branch-specific tests
+#   1. Checkout the branch you want to test: git checkout <branch-name>
+#   2. Start your application: mvn spring-boot:run -Dspring-boot.run.profiles=docker
+#   3. In another terminal: ./demo-tests.sh
 #
 # Make sure database is loaded with test data first!
 # ===========================================
@@ -27,9 +28,13 @@ NC='\033[0m' # No Color
 APP_URL="http://localhost:8080"
 REPEAT_COUNT=3
 
+# Detect current branch
+CURRENT_BRANCH=$(git branch --show-current)
+
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Hibernate Performance Demo Tests${NC}"
 echo -e "${GREEN}========================================${NC}\n"
+echo -e "${BLUE}Current branch: ${YELLOW}${CURRENT_BRANCH}${NC}\n"
 
 # Check if application is running
 echo -e "${BLUE}Checking if application is running...${NC}"
@@ -133,24 +138,10 @@ compare_endpoints() {
     echo ""
 }
 
-# Main loop - allows returning to menu
-while true; do
-    # Show branch menu
-    echo -e "${CYAN}========================================${NC}"
-    echo -e "${CYAN}SELECT YOUR CURRENT BRANCH:${NC}"
-    echo -e "${CYAN}========================================${NC}"
-    echo ""
-    echo "  1) main          - Full-featured best practices demo"
-    echo "  2) badmain       - Anti-patterns demonstration"
-    echo "  3) 001-n1problem - N+1 query problem demo"
-    echo "  4) 002-pagination - Pagination strategies demo"
-    echo "  5) 003-blob-management - BLOB loading demo"
-    echo "  6) Exit"
-    echo ""
-    read -p "Enter choice [1-6]: " BRANCH_CHOICE
-
-    case $BRANCH_CHOICE in
-    1)
+# Main logic - auto-detect branch and run appropriate tests
+run_tests() {
+    case $CURRENT_BRANCH in
+    main)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}MAIN BRANCH - Best Practices Demo${NC}"
         echo -e "${GREEN}═══════════════════════════════════════${NC}\n"
@@ -240,7 +231,7 @@ while true; do
         esac
         ;;
 
-    2)
+    badmain)
         echo -e "\n${RED}═══════════════════════════════════════${NC}"
         echo -e "${RED}BADMAIN BRANCH - Anti-Patterns Demo${NC}"
         echo -e "${RED}═══════════════════════════════════════${NC}\n"
@@ -264,7 +255,7 @@ while true; do
         fi
         ;;
 
-    3)
+    001-n1problem)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}N+1 PROBLEM DEMO (001-n1problem)${NC}"
         echo -e "${GREEN}═══════════════════════════════════════${NC}\n"
@@ -305,48 +296,119 @@ while true; do
         fi
         ;;
 
-    4)
+    002-pagination)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}PAGINATION DEMO (002-pagination)${NC}"
         echo -e "${GREEN}═══════════════════════════════════════${NC}\n"
 
-        echo "This branch demonstrates pagination strategies:"
-        echo "  📄 OFFSET: Simple but degrades with higher pages"
-        echo "  🔑 KEYSET: Consistent performance regardless of offset"
+        echo "This branch demonstrates pagination best practices:"
+        echo "  ❌ BAD: Loading all records without pagination"
+        echo "  ✅ GOOD: Using Spring Data Pageable"
+        echo "  ✅ ADVANCED: Pagination with sorting and filtering"
         echo ""
 
-        echo -e "${CYAN}══ OFFSET Pagination ══${NC}"
-        test_endpoint "Page 0 (beginning)" \
-            "${APP_URL}/api/pagination/offset?page=0&size=100" $REPEAT_COUNT
+        echo -e "${YELLOW}Select test scenario:${NC}"
+        echo "  1) Problem vs Solution (all users vs paginated)"
+        echo "  2) Basic Pagination (different page sizes)"
+        echo "  3) Pagination with Sorting"
+        echo "  4) Pagination with Search/Filter"
+        echo "  5) Optimized Pagination (with EntityGraph)"
+        echo "  6) Stress Test (multiple pages)"
+        echo ""
+        read -p "Enter choice [1-6]: " PAGINATION_CHOICE
 
-        test_endpoint "Page 1000 (middle - SLOWER!)" \
-            "${APP_URL}/api/pagination/offset?page=1000&size=100" $REPEAT_COUNT
+        case $PAGINATION_CHOICE in
+            1)
+                echo -e "\n${CYAN}══ Problem vs Solution ══${NC}"
+                echo -e "${RED}WARNING: /bad/all endpoint loads ALL users - may be slow!${NC}"
+                echo ""
+                compare_endpoints \
+                    "❌ BAD: All users (no pagination)" \
+                    "${APP_URL}/api/pagination-demo/bad/all" \
+                    "✅ GOOD: Paginated (page 0, size 20)" \
+                    "${APP_URL}/api/pagination-demo/good?page=0&size=20"
+                ;;
 
-        test_endpoint "Page 5000 (far - VERY SLOW!)" \
-            "${APP_URL}/api/pagination/offset?page=5000&size=100" $REPEAT_COUNT
+            2)
+                echo -e "\n${CYAN}══ Basic Pagination ══${NC}"
+                test_endpoint "Page 0 (first 20 users)" \
+                    "${APP_URL}/api/pagination-demo/good?page=0&size=20" $REPEAT_COUNT
 
-        read -p "Test KEYSET pagination for comparison? (y/n): " TEST_KEYSET
-        if [ "$TEST_KEYSET" = "y" ]; then
-            echo ""
-            echo -e "${CYAN}══ KEYSET Pagination ══${NC}"
+                test_endpoint "Page 10 (users 200-220)" \
+                    "${APP_URL}/api/pagination-demo/good?page=10&size=20" $REPEAT_COUNT
 
-            test_endpoint "KEYSET: Start (lastId=0)" \
-                "${APP_URL}/api/pagination/keyset?lastId=0&size=100" $REPEAT_COUNT
+                test_endpoint "Page 50 (users 1000-1020)" \
+                    "${APP_URL}/api/pagination-demo/good?page=50&size=20" $REPEAT_COUNT
 
-            test_endpoint "KEYSET: Middle (lastId=100000) - STILL FAST!" \
-                "${APP_URL}/api/pagination/keyset?lastId=100000&size=100" $REPEAT_COUNT
+                echo -e "${YELLOW}Note: OFFSET pagination may degrade with very high page numbers${NC}"
+                ;;
 
-            test_endpoint "KEYSET: Far (lastId=500000) - STILL FAST!" \
-                "${APP_URL}/api/pagination/keyset?lastId=500000&size=100" $REPEAT_COUNT
+            3)
+                echo -e "\n${CYAN}══ Pagination with Sorting ══${NC}"
+                test_endpoint "Sort by name (ASC)" \
+                    "${APP_URL}/api/pagination-demo/good-with-sort?page=0&size=10&sortBy=name&sortDir=asc" $REPEAT_COUNT
 
-            echo ""
-            echo -e "${GREEN}✓ Notice: KEYSET maintains consistent performance!${NC}"
-            echo -e "${YELLOW}  OFFSET: Gets slower with higher pages (10ms → 100ms → 500ms)${NC}"
-            echo -e "${GREEN}  KEYSET: Stays fast regardless of position (10ms → 10ms → 10ms)${NC}"
-        fi
+                test_endpoint "Sort by email (DESC)" \
+                    "${APP_URL}/api/pagination-demo/good-with-sort?page=0&size=10&sortBy=email&sortDir=desc" $REPEAT_COUNT
+                ;;
+
+            4)
+                echo -e "\n${CYAN}══ Pagination with Search ══${NC}"
+                echo "Searching for users with 'User' in their name"
+                echo ""
+                test_endpoint "Search: 'User' (page 0)" \
+                    "${APP_URL}/api/pagination-demo/search?name=User&page=0&size=20" $REPEAT_COUNT
+
+                test_endpoint "Search: 'User' (page 5)" \
+                    "${APP_URL}/api/pagination-demo/search?name=User&page=5&size=20" $REPEAT_COUNT
+                ;;
+
+            5)
+                echo -e "\n${CYAN}══ Optimized Pagination (with EntityGraph) ══${NC}"
+                echo "Compare pagination WITH and WITHOUT EntityGraph optimization"
+                echo ""
+                echo -e "${YELLOW}What to expect:${NC}"
+                echo "  ⚠️  Basic: May trigger N+1 queries (1 + 20 queries for 20 users)"
+                echo "  ✅ Optimized: Single query with JOIN (fast!)"
+                echo ""
+                echo -e "${YELLOW}💡 Watch the SQL logs to see the difference!${NC}"
+                echo ""
+                compare_endpoints \
+                    "⚠️  Basic pagination (WITHOUT EntityGraph - N+1 problem!)" \
+                    "${APP_URL}/api/pagination-demo/good?page=0&size=20" \
+                    "✅ Optimized pagination (WITH EntityGraph - single query)" \
+                    "${APP_URL}/api/pagination-demo/optimized?page=0&size=20"
+                ;;
+
+            6)
+                echo -e "\n${CYAN}══ Stress Test ══${NC}"
+                echo "Testing 10 sequential pages to verify consistent performance"
+                echo ""
+                echo -e "${YELLOW}What this tests:${NC}"
+                echo "  • Performance consistency across different page numbers"
+                echo "  • Whether pagination degrades with higher offsets"
+                echo "  • Memory and query optimization effectiveness"
+                echo ""
+
+                echo -e "${BLUE}Running stress test (fetching 10 pages of 50 users each)...${NC}"
+                echo ""
+
+                STRESS_RESULT=$(curl -s "${APP_URL}/api/pagination-demo/stress-test")
+                echo "$STRESS_RESULT"
+                echo ""
+
+                echo -e "${YELLOW}💡 Interpretation:${NC}"
+                echo "  ✅ Good: Similar times across all pages (20-30ms each)"
+                echo "  ⚠️  Bad: Times increase with page number (20ms → 50ms → 100ms)"
+                echo ""
+                echo -e "${CYAN}Why this matters:${NC}"
+                echo "  OFFSET pagination skips rows, so page 9 skips 450 rows."
+                echo "  With proper indexing and EntityGraph, performance stays consistent!"
+                ;;
+        esac
         ;;
 
-    5)
+    003-blob-management)
         echo -e "\n${GREEN}═══════════════════════════════════════${NC}"
         echo -e "${GREEN}BLOB MANAGEMENT DEMO (003-blob-management)${NC}"
         echo -e "${GREEN}═══════════════════════════════════════${NC}\n"
@@ -385,46 +447,53 @@ while true; do
         fi
         ;;
 
-    6)
-        echo ""
-        echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-        echo -e "${GREEN}Thanks for using the Hibernate Performance Demo!${NC}"
-        echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-        echo ""
-        echo -e "${CYAN}Tips for deeper analysis:${NC}"
-        echo ""
-        echo -e "${YELLOW}📊 View SQL logs:${NC}"
-        echo "   tail -f spring-boot.log | grep 'org.hibernate.SQL'"
-        echo ""
-        echo -e "${YELLOW}📈 Monitor database performance:${NC}"
-        echo "   docker exec -it hibernate-postgres psql -U hibernate_user -d hibernate_formation"
-        echo ""
-        echo -e "${YELLOW}💾 Check memory usage:${NC}"
-        echo "   docker stats hibernate-postgres"
-        echo ""
-        echo -e "${YELLOW}🔍 View Hibernate statistics:${NC}"
-        echo "   Check application logs for Session Metrics"
-        echo ""
-        echo -e "${CYAN}Next steps:${NC}"
-        echo "  • Switch branches to compare different implementations"
-        echo "  • Monitor SQL queries in logs while running tests"
-        echo "  • Try different configuration profiles (good-performance vs bad-performance)"
-        echo ""
-        exit 0
-        ;;
-
     *)
-        echo -e "${RED}Invalid choice. Please enter 1-6.${NC}"
         echo ""
-        continue
+        echo -e "${RED}════════════════════════════════════════════════════════${NC}"
+        echo -e "${RED}ERROR: Unknown branch '${CURRENT_BRANCH}'${NC}"
+        echo -e "${RED}════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${YELLOW}This script supports the following branches:${NC}"
+        echo "  • main"
+        echo "  • badmain"
+        echo "  • 001-n1problem"
+        echo "  • 002-pagination"
+        echo "  • 003-blob-management"
+        echo ""
+        echo -e "${CYAN}To test a different branch:${NC}"
+        echo "  1. git checkout <branch-name>"
+        echo "  2. ./demo-tests.sh"
+        echo ""
+        exit 1
         ;;
     esac
+}
 
-    echo ""
-    echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}Test completed!${NC}"
-    echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
-    echo ""
-    read -p "Press Enter to return to main menu..."
-    echo ""
-done
+# Run tests for current branch
+run_tests
+
+# Show completion message
+echo ""
+echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}Test completed!${NC}"
+echo -e "${GREEN}════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${CYAN}Tips for deeper analysis:${NC}"
+echo ""
+echo -e "${YELLOW}📊 View SQL logs:${NC}"
+echo "   tail -f spring-boot.log | grep 'org.hibernate.SQL'"
+echo ""
+echo -e "${YELLOW}📈 Monitor database performance:${NC}"
+echo "   docker exec -it hibernate-postgres psql -U hibernate_user -d hibernate_formation"
+echo ""
+echo -e "${YELLOW}💾 Check memory usage:${NC}"
+echo "   docker stats hibernate-postgres"
+echo ""
+echo -e "${YELLOW}🔍 View Hibernate statistics:${NC}"
+echo "   Check application logs for Session Metrics"
+echo ""
+echo -e "${CYAN}Next steps:${NC}"
+echo "  • Switch branches to compare different implementations: git checkout <branch>"
+echo "  • Monitor SQL queries in logs while running tests"
+echo "  • Run this script again on a different branch"
+echo ""
