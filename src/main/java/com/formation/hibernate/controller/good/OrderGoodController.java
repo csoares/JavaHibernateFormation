@@ -13,6 +13,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -310,6 +312,162 @@ public class OrderGoodController {
                 logger.info("✅ Estatísticas geradas para {} status diferentes", statistics.size());
 
                 return ResponseEntity.ok(statistics);
+            });
+    }
+
+    /*
+     * 🎓 ENDPOINT DOWNLOAD PDF - Demonstração de Como Carregar BLOB Corretamente
+     */
+
+    // ✅ BOA PRÁTICA: Carregar BLOB APENAS quando explicitamente necessário
+    // VANTAGEM: Endpoint dedicado para download - não afeta outros endpoints
+    // VANTAGEM: Retorna byte[] diretamente com headers HTTP corretos
+    // IMPORTANTE: Este é o ÚNICO endpoint que carrega o BLOB
+    @GetMapping("/{id}/invoice/download")
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id) {
+        String operationId = "downloadInvoicePdf-" + id;
+
+        return performanceMonitor.measure(operationId,
+            "Download de PDF do pedido (carregamento EXPLÍCITO de BLOB)",
+            () -> {
+                // ✅ BOA PRÁTICA: Query que carrega APENAS o BLOB
+                // VANTAGEM: Não carrega outras colunas desnecessariamente
+                // VANTAGEM: Evita problemas de serialização com @JsonIgnore
+                byte[] pdfData = orderRepository.findInvoicePdfById(id);
+
+                if (pdfData == null || pdfData.length == 0) {
+                    logger.warn("⚠️ Pedido {} não encontrado ou não possui PDF", id);
+                    return ResponseEntity.notFound().build();
+                }
+
+                // Get order number for filename (without loading full entity)
+                Object[] metadata = orderRepository.findOrderMetadataById(id);
+                String orderNumber = (metadata != null && metadata.length > 1 && metadata[1] != null) ?
+                    (String) metadata[1] : "order-" + id;
+
+                // ✅ BOA PRÁTICA: Headers HTTP corretos para download de arquivo
+                // Content-Type: application/pdf (navegador sabe que é PDF)
+                // Content-Disposition: attachment (força download)
+                // Content-Length: tamanho em bytes
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_PDF);
+                headers.setContentDispositionFormData("attachment",
+                    "invoice-" + orderNumber + ".pdf");
+                headers.setContentLength(pdfData.length);
+
+                logger.info("✅ PDF do pedido {} baixado com sucesso ({} KB)",
+                    orderNumber, pdfData.length / 1024);
+
+                // ✅ BOA PRÁTICA: ResponseEntity com headers customizados
+                // RESULTADO: Navegador faz download do arquivo corretamente
+                return ResponseEntity
+                    .ok()
+                    .headers(headers)
+                    .body(pdfData);
+            });
+    }
+
+    // ✅ BOA PRÁTICA: Verificar se PDF existe SEM carregar o BLOB
+    // VANTAGEM: Consulta leve que retorna apenas boolean
+    // VANTAGEM: Cliente pode verificar antes de fazer download
+    @GetMapping("/{id}/invoice/exists")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Boolean> checkInvoiceExists(@PathVariable Long id) {
+        String operationId = "checkInvoiceExists-" + id;
+
+        return performanceMonitor.measure(operationId,
+            "Verificar existência de PDF sem carregar dados",
+            () -> {
+                // ✅ BOA PRÁTICA: Usa query customizada que retorna apenas boolean
+                // VANTAGEM: NÃO carrega o BLOB (apenas verifica IS NOT NULL)
+                // RESULTADO: Query extremamente rápida e leve
+                boolean exists = orderRepository.orderHasPdf(id);
+
+                logger.info("✅ Verificação de PDF para pedido {}: {}", id, exists);
+
+                return ResponseEntity.ok(exists);
+            });
+    }
+
+    // ✅ BOA PRÁTICA: Retornar metadados do PDF sem carregar o arquivo
+    // VANTAGEM: Cliente recebe informações úteis (tamanho, etc) antes de baixar
+    @GetMapping("/{id}/invoice/metadata")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Object> getInvoiceMetadata(@PathVariable Long id) {
+        String operationId = "getInvoiceMetadata-" + id;
+
+        return performanceMonitor.measure(operationId,
+            "Obter metadados do PDF sem carregar dados",
+            () -> {
+                // ✅ BOA PRÁTICA: Query que usa LENGTH() para tamanho do BLOB
+                // VANTAGEM: Não carrega o BLOB em memória - apenas calcula tamanho
+                Object[] wrapper = orderRepository.findOrderMetadataById(id);
+
+                if (wrapper == null || wrapper.length == 0) {
+                    return ResponseEntity.notFound().build();
+                }
+
+                // Spring Data wraps native query results in Object[]
+                // So wrapper[0] is the actual row as Object[]
+                Object[] result = wrapper[0] instanceof Object[] ? (Object[]) wrapper[0] : wrapper;
+
+                //Native queries return BigInteger for BIGINT columns in PostgreSQL
+                Long orderId = result[0] instanceof Number ? ((Number) result[0]).longValue() : null;
+                String orderNumber = (String) result[1];
+                Integer pdfSizeBytes = result[2] != null ? ((Number) result[2]).intValue() : 0;
+
+                java.util.Map<String, Object> metadata = new java.util.HashMap<>();
+                metadata.put("orderId", orderId);
+                metadata.put("orderNumber", orderNumber);
+                metadata.put("hasPdf", pdfSizeBytes > 0);
+                metadata.put("pdfSizeBytes", pdfSizeBytes);
+                metadata.put("pdfSizeKB", pdfSizeBytes / 1024);
+                metadata.put("pdfSizeMB", pdfSizeBytes / (1024.0 * 1024.0));
+
+                logger.info("✅ Metadados do PDF obtidos para pedido {} ({} bytes)",
+                    orderNumber, pdfSizeBytes);
+
+                return ResponseEntity.ok(metadata);
+            });
+    }
+
+    // ✅ BOA PRÁTICA: Retornar PDF em Base64 (para uso em JSON/APIs)
+    @GetMapping("/{id}/invoice/base64")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Object> getInvoicePdfAsBase64(@PathVariable Long id) {
+        String operationId = "getInvoicePdfAsBase64-" + id;
+
+        return performanceMonitor.measure(operationId,
+            "Obter PDF como Base64 para JSON",
+            () -> {
+                // ✅ BOA PRÁTICA: Carrega apenas o BLOB
+                byte[] pdfData = orderRepository.findInvoicePdfById(id);
+
+                if (pdfData == null || pdfData.length == 0) {
+                    logger.warn("⚠️ Pedido {} não encontrado ou não possui PDF", id);
+                    return ResponseEntity.notFound().build();
+                }
+
+                // Get metadata
+                Object[] metadata = orderRepository.findOrderMetadataById(id);
+                String orderNumber = (metadata != null && metadata.length > 1 && metadata[1] != null) ?
+                    (String) metadata[1] : "order-" + id;
+
+                // Convert to Base64
+                String base64Pdf = java.util.Base64.getEncoder().encodeToString(pdfData);
+
+                java.util.Map<String, Object> response = new java.util.HashMap<>();
+                response.put("orderId", id);
+                response.put("orderNumber", orderNumber);
+                response.put("pdfBase64", base64Pdf);
+                response.put("pdfSizeBytes", pdfData.length);
+                response.put("mimeType", "application/pdf");
+
+                logger.info("✅ PDF do pedido {} convertido para Base64 ({} KB)",
+                    orderNumber, pdfData.length / 1024);
+
+                return ResponseEntity.ok(response);
             });
     }
 }

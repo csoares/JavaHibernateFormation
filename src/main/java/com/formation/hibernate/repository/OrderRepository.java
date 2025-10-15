@@ -102,4 +102,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     // Top clientes por valor total de pedidos
     // @Query("SELECT o.user, SUM(o.totalAmount) FROM Order o GROUP BY o.user ORDER BY SUM(o.totalAmount) DESC")
     // List<Object[]> findTopCustomersByTotalAmount();
+
+    // ✅ BOA PRÁTICA: Verificar existência de PDF sem carregar o BLOB
+    @Query("SELECT CASE WHEN o.invoicePdf IS NOT NULL THEN true ELSE false END FROM Order o WHERE o.id = :id")
+    boolean orderHasPdf(@Param("id") Long id);
+
+    // ✅ BOA PRÁTICA: Carregar APENAS o BLOB (sem outras colunas)
+    // Note: Must use native query to avoid Hibernate type mapping issues
+    @Query(value = "SELECT invoice_pdf FROM orders WHERE id = :id", nativeQuery = true)
+    byte[] findInvoicePdfById(@Param("id") Long id);
+
+    // ✅ BOA PRÁTICA: Obter informações do pedido SEM carregar o BLOB
+    // Note: Using native query because JPQL LENGTH() doesn't work with byte[]
+    @Query(value = "SELECT o.id, o.order_number, OCTET_LENGTH(o.invoice_pdf) FROM orders o WHERE o.id = :id", nativeQuery = true)
+    Object[] findOrderMetadataById(@Param("id") Long id);
 }

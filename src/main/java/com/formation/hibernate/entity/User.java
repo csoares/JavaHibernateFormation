@@ -2,6 +2,7 @@ package com.formation.hibernate.entity;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.BatchSize;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,6 +50,7 @@ public class User {
 
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     @BatchSize(size = 25)
+    @JsonIgnore  // Prevent circular reference and avoid loading all orders
     private List<Order> orders;
 
 

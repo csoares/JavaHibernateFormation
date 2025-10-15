@@ -2,6 +2,7 @@ package com.formation.hibernate.entity;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.BatchSize;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.List;
 
@@ -36,6 +37,7 @@ public class Department {
 
     @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
     @BatchSize(size = 25)
+    @JsonIgnore  // Prevent circular reference: Department -> User -> Department
     private List<User> users;
 
 

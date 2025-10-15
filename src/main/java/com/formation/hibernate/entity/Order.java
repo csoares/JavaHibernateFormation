@@ -2,6 +2,7 @@ package com.formation.hibernate.entity;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.BatchSize;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -61,11 +62,13 @@ public class Order {
 
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @BatchSize(size = 50)
+    @JsonIgnore  // Prevent loading orderItems in JSON responses (use DTO instead)
     private List<OrderItem> orderItems;
 
     @Lob
     @Basic(fetch = FetchType.LAZY)
     @Column(name = "invoice_pdf")
+    @JsonIgnore  // Prevent Jackson from serializing BLOB in JSON responses
     private byte[] invoicePdf;
 
 
