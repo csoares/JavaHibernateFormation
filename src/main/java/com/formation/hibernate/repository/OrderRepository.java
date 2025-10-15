@@ -58,11 +58,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            nativeQuery = true)
     Optional<Object[]> findOrderWithUserAndDepartmentNative(@Param("id") Long id);
 
-    @Query("SELECT o FROM Order o " +
-           "JOIN FETCH o.user u " +
-           "JOIN FETCH u.department d " +
-           "WHERE o.orderNumber = :orderNumber")
-    Optional<Order> findByOrderNumberWithDetails(@Param("orderNumber") String orderNumber);
+    // ✅ FIXED: Native query with explicit JOINs and NO BLOB (by order number)
+    // Returns Order data with user and department loaded in single query
+    // Uses order_number index for fast lookup
+    // IMPORTANT: Excludes invoice_pdf to avoid PostgreSQL BYTEA type errors
+    @Query(value = "SELECT o.id, o.order_number, o.order_date, o.total_amount, o.status, o.user_id, " +
+                   "u.id as user_id2, u.name as user_name, u.email as user_email, u.created_at as user_created, " +
+                   "d.id as dept_id, d.name as dept_name " +
+                   "FROM orders o " +
+                   "JOIN users u ON o.user_id = u.id " +
+                   "LEFT JOIN departments d ON u.department_id = d.id " +
+                   "WHERE o.order_number = :orderNumber",
+           nativeQuery = true)
+    Optional<Object[]> findByOrderNumberWithDetails(@Param("orderNumber") String orderNumber);
 
 
     @Query("SELECT new com.formation.hibernate.dto.OrderSummaryDto(o.id, o.orderNumber, o.orderDate, o.totalAmount, o.status) " +

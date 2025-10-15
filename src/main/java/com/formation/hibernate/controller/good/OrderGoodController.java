@@ -212,16 +212,55 @@ public class OrderGoodController {
         return performanceMonitor.measure(operationId,
             "Buscar pedido por número com JOIN FETCH múltiplo",
             () -> {
-                // ✅ BOA PRÁTICA: Múltiplos JOIN FETCH estratégicos
+                // ✅ BOA PRÁTICA: Native query com JOINs explícitos e SEM BLOB
                 // VANTAGEM: Uma única query para Order + User + Department
                 // VANTAGEM: Usa índice único em orderNumber (instantâneo)
-                // IMPORTANTE: Método não inclui BLOB no EntityGraph
+                // IMPORTANTE: Query exclui invoice_pdf BLOB para evitar erros PostgreSQL
                 // RESULTADO: Dados completos sem carregar MB de PDF
-                Optional<Order> order = orderRepository.findByOrderNumberWithDetails(orderNumber);
+                Optional<Object[]> orderData = orderRepository.findByOrderNumberWithDetails(orderNumber);
 
-                if (order.isPresent()) {
-                    OrderDto dto = orderConverter.toDto(order.get());
-                    logger.info("✅ Pedido encontrado por número: {}", dto.getOrderNumber());
+                if (orderData.isPresent()) {
+                    Object[] wrapper = orderData.get();
+                    // NOTE: Spring Data JPA wraps native query results in Object[]
+                    // So wrapper[0] contains the actual row data as Object[]
+                    // Check if wrapper has data before accessing
+                    if (wrapper == null || wrapper.length == 0) {
+                        logger.warn("⚠️ Pedido não encontrado com número: {}", orderNumber);
+                        return ResponseEntity.notFound().build();
+                    }
+                    Object[] row = (Object[]) wrapper[0];
+
+                    // Manual mapping from Object[] to OrderDto to avoid loading Order entity
+                    // Columns: id, order_number, order_date, total_amount, status, user_id,
+                    //          user_id2, user_name, user_email, user_created, dept_id, dept_name
+                    // Note: PostgreSQL native queries return BigInteger for BIGINT columns
+                    OrderDto dto = new OrderDto(
+                        ((Number) row[0]).longValue(),                              // id
+                        (String) row[1],                                            // order_number
+                        ((java.sql.Timestamp) row[2]).toLocalDateTime(),            // order_date
+                        (BigDecimal) row[3],                                        // total_amount
+                        Order.OrderStatus.valueOf((String) row[4])                 // status
+                    );
+
+                    // ✅ BOA PRÁTICA: Dados de User e Department vêm na mesma query (JOINs)
+                    // VANTAGEM: Sem N+1 problem - tudo numa única consulta SQL
+                    // RESULTADO: Performance máxima com JOINs otimizados
+                    String userName = (String) row[7];        // user_name
+                    String userEmail = (String) row[8];       // user_email
+                    java.sql.Timestamp userCreatedTs = (java.sql.Timestamp) row[9]; // user_created
+                    LocalDateTime userCreated = userCreatedTs != null ? userCreatedTs.toLocalDateTime() : null;
+                    String departmentName = (String) row[11]; // dept_name
+
+                    dto.setUser(new UserSummaryDto(
+                        ((Number) row[6]).longValue(),                              // user_id2
+                        userName,
+                        userEmail,
+                        userCreated,
+                        departmentName
+                    ));
+
+                    logger.info("✅ Pedido encontrado por número com 1 query otimizada: {} (User: {}, Department: {})",
+                        dto.getOrderNumber(), userName, departmentName != null ? departmentName : "N/A");
                     return ResponseEntity.ok(dto);
                 } else {
                     logger.warn("⚠️ Pedido não encontrado com número: {}", orderNumber);
